@@ -1,0 +1,28 @@
+{
+  "name": "debi-gateway",
+  "version": "1.0.0",
+  "description": "Debi in premises gateway",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ranork/Debi-Gateway.git"
+  },
+  "keywords": [
+    "debi",
+    "gateway"
+  ],
+  "author": "Akatron Network",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ranork/Debi-Gateway/issues"
+  },
+  "homepage": "https://github.com/Ranork/Debi-Gateway#readme",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "express": "^4.18.1",
+    "mssql": "^9.0.1"
+  }
+}
