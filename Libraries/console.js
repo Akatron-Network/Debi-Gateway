@@ -1,4 +1,5 @@
 const misc = require('../Libraries/misc');
+const { handleError } = require('./errorhandler');
 
 //* Console log function with date and time stamp
 // log('test')
@@ -20,7 +21,8 @@ function clean_log(text) {
 }
 
 //* Error Log
-function error_log(text) {
+function error_log(text, error = undefined) {
+  if (error) {handleError(error);}
   return log(colors.FgRed + "[ERROR] " + colors.Dim + text + colors.Reset)
 }
 
