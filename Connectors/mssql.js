@@ -1,7 +1,7 @@
 const sql = require('mssql')
 const cnsl = require('../Libraries/console');
 const misc = require('../Libraries/misc');
-const DBTranslate = require('../Libraries/translate').DBTranslate;
+const DBTranslate = require('../Requests/translate').DBTranslate;
 
 //* Microsoft SQL Server Connector
 //. Example use:
@@ -28,7 +28,10 @@ class ConnectorMSSQL {
   //. Construct the class
   constructor(collection, sqlConfig) {
     this.collection = collection
-    this.sqlConfig = this.fixconfig(sqlConfig) 
+    this.sqlConfig = this.fixconfig(sqlConfig)
+
+    // console.log(collection);
+    //todo Get collection data from api host then remake the getConnector function
   }
 
   fixconfig(sqlConfig) {

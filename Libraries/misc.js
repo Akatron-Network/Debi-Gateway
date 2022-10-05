@@ -1,4 +1,20 @@
 
+//* Get the body from request
+// Returns JSON
+
+//. when its get request it gives query as body
+function reqBody(req) {
+  var method = req.method
+
+  if (method === 'GET') { 
+    if (req.query.body) { return JSON.parse(req.query.body) }
+    else if (Object.keys(req.query).length > 0) { return req.query }
+   }
+  return req.body
+}
+
+
+
 //* Gives the timestamp in seconds
 // Returns integer
 function getTimestamp () {
@@ -16,6 +32,26 @@ function getDateString () {
 
   return yyyy + "-" + mm + "-" + dd
 }
+
+
+//* Control the body keys
+// Returns [state, data]
+function controlBody(body = {}, required_keys, forbidden_keys) {
+  for (var r in required_keys) {
+    var req_key = required_keys[r]
+    if (!Object.keys(body).includes(req_key)) {
+      return [false, req_key + " not found in request body!"]
+    }
+  }
+  for (var f in forbidden_keys) {
+    var forb_key = forbidden_keys[f]
+    if (Object.keys(body).includes(forb_key)) {
+      return [false, forb_key + " can not be used in request body!"]
+    }
+  }
+  return [true]
+}
+
 
 
 //* Gives Time as hh:mm:ss
@@ -66,7 +102,7 @@ function roughSizeOfObject (object) {
 }
 
 
-function sizeOfJson(obj) {
+function sizeOfJson(obj = {}) {
   return (Buffer.byteLength(JSON.stringify(obj), "utf8") / 1024)
 }
 
@@ -126,6 +162,8 @@ function isJson(object) {
 
 
 module.exports = {
+  reqBody,
+  controlBody,
   getTimestamp,
   getDateString,
   getTimeString,
@@ -135,5 +173,5 @@ module.exports = {
   arraySortByKey,
   descArraySortByKey,
   isArray,
-  isJson
+  isJson,
 }

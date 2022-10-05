@@ -3,6 +3,8 @@ const resp = require('../Libraries/resp');
 const misc = require('../Libraries/misc');
 const cnsl = require('../Libraries/console');
 
+//--- Data Functions
+const explorer = require('./data/explorer').function_module;
 
 //* Function Registration
 
@@ -11,7 +13,7 @@ const cnsl = require('../Libraries/console');
 //. }
 
 var Functions_registry = {
-
+  data: [explorer]
 }
 
 
