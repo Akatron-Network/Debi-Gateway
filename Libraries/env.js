@@ -10,6 +10,10 @@ class Function_Settings {
   static Function_Url = "/fn/:category/:funcname/"
 }
 
+//--- Collections
+
+var Collections = {}
+
 
 //--- Connectors
 
@@ -56,6 +60,7 @@ var Settings = {}
 module.exports = {
   Functions,
   Function_Settings,
+  Collections,
   Connectors,
   ConnectorConfigs,
   DBTranslateData,
