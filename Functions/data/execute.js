@@ -16,8 +16,7 @@ async function post(req, res, body) {
   //* Get connector
   var Connector = await connector.getConnector(coll_id)
 
-  try { var ans = await Connector.execute(query) }
-  catch (e) { return resp.resp_error(res, e.message) }
+  var ans = await Connector.execute(query) 
   if (!ans[0]) { return resp.resp_error(res, ans[1]) }
 
   return resp.resp_success(res, ans[1]);

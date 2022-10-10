@@ -24,7 +24,7 @@ async function get(req, res, body) {
     }
 
     try { var ans = await Connector.get_table_info(body.table_name, columns, relations) }
-    catch (e) { return resp.resp_error(res, e.message) }
+    catch (e) { return resp.resp_error(res, e) }
 
     return resp.resp_success(res, ans)
   }
@@ -42,7 +42,7 @@ async function get(req, res, body) {
   
 
   try { var ans = await Connector.get_tables(views, columns, relations) }
-  catch (e) { return resp.resp_error(res, e.message) }
+  catch (e) { return resp.resp_error(res, e) }
   
   return resp.resp_success(res, ans);
 

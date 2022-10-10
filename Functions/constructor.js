@@ -6,6 +6,7 @@ const cnsl = require('../Libraries/console');
 //--- Data Functions
 const explorer = require('./data/explorer').function_module;
 const execute = require('./data/execute').function_module;
+const conector = require('./data/connector').function_module;
 
 //* Function Registration
 
@@ -14,7 +15,7 @@ const execute = require('./data/execute').function_module;
 //. }
 
 var Functions_registry = {
-  data: [explorer, execute]
+  data: [explorer, execute, conector]
 }
 
 

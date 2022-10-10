@@ -361,9 +361,8 @@ class ConnectorMSSQL {
     if (!views) { tables_sql += " WHERE TABLE_TYPE != 'VIEW'"}
     tables_sql += " ORDER BY TABLE_TYPE, TABLE_NAME"
 
-    try { var tables_list = await this.query(tables_sql) }
-    catch (e) { return [] }
-    if (!tables_list[0]) { return [] }
+    var tables_list = await this.query(tables_sql)
+    if (!tables_list[0]) { throw tables_list[1] }
     
     tables_list = tables_list[1].recordset
 
@@ -476,10 +475,9 @@ class ConnectorMSSQL {
       "FROM INFORMATION_SCHEMA.COLUMNS cl WHERE TABLE_NAME = '" + tablename + "'"
     ]
 
-    try { var columns_resp = await this.query(columns_sql.join("\n")) }
-    catch (e) { return [] }
+    var columns_resp = await this.query(columns_sql.join("\n"))
 
-    if (!columns_resp[0]) { return [] }
+    if (!columns_resp[0]) { throw columns_resp[1] }
 
     var cols = columns_resp[1].recordset
 
@@ -528,9 +526,9 @@ class ConnectorMSSQL {
       //-- INNER TABLES --
       if (inner) {
         const inner_rel_sql = "SELECT * FROM " + relation_view + " WHERE RV.table_name = '" + tablename + "'"
-        const inner_rel_resp = await this.query(inner_rel_sql)
+        const inner_rel_resp = await this.query(inner_rel_sql) 
 
-        if (!inner_rel_resp[0]) { return [] }
+        if (!inner_rel_resp[0]) { throw inner_rel_resp[1] }
 
         var inner_rels = inner_rel_resp[1].recordset
         var inner_tables = []
@@ -563,9 +561,9 @@ class ConnectorMSSQL {
       //-- OUTER TABLES --
       else {
         const outer_rel_sql = "SELECT * FROM " + relation_view + " WHERE RV.referenced_object = '" + tablename + "'"
-        const outer_rel_resp = await this.query(outer_rel_sql)
+        const outer_rel_resp = await this.query(outer_rel_sql) 
 
-        if (!outer_rel_resp[0]) { return [] }
+        if (!outer_rel_resp[0]) { throw outer_rel_resp[1] }
 
         var outer_rels = outer_rel_resp[1].recordset
         var outer_tables = []
