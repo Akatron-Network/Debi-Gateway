@@ -8,8 +8,6 @@ const bodyParser = require('body-parser');
 //* Internal Imports
 const router = require('./router');
 const cnsl = require('./Libraries/console');
-const connector = require('./Requests/connector');
-const token = require('./Requests/token');
 const env = require('./Libraries/env');
 const reqmain = require('./Requests/main');
 
@@ -48,6 +46,7 @@ var server = app.listen(8001, function() {
     cnsl.colors.FgWhite + env.Settings.APIPORT + "\n")
     cnsl.clean_log(cnsl.colors.FgYellow + "Gateway on port: 8001")
 })
+
 
 reqmain.setup();
 

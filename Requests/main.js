@@ -5,9 +5,14 @@ const cnsl = require('../Libraries/console');
 const { DBTranslate } = require("./translate");
 const { getCollections } = require("./collections");
 const misc = require('../Libraries/misc');
+const { ping } = require('./ping');
 
 async function setup() {
   var st_time = misc.getTimestamp()
+
+  var connectable = await ping();
+
+  if (!connectable) { cnsl.error_log('Cannot connect to: ' + env.Settings.APIHOST + ":" + env.Settings.APIPORT); throw "Api Connection Failed"; }
 
   let ansToken = await getToken();
   if (!ansToken) { throw "Token Error." }

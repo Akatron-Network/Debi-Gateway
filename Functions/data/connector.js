@@ -23,8 +23,6 @@ async function put(req, res, body) {
     cnsl.clean_log(cnsl.colors.FgWhite + cnsl.colors.Dim + JSON.stringify(context, undefined, 4));
 
     await connector.connect()
-
-    //todo scheme similarity control
     
     //* Get similarity to schemes
     var tbls = await connector.get_tables()
