@@ -8,18 +8,14 @@ const dbscheme = require('../../Requests/dbscheme');
 //-- Control connector
 async function put(req, res, body) {
   
-  var coll_id = body.collection_id
   var conn_type = body.connector_type
   var context = body.context
-
-  //* Control permission for this collection (editable)
-  if (!env.Collections.hasOwnProperty(coll_id)) { return resp.resp_error(res, "permission denied.") }
 
   //* is connector type exists ?
   if (!env.Connectors.hasOwnProperty(conn_type)) { return resp.resp_error(res, "connector type not found.") }
 
   try { 
-    var connector = new env.Connectors[conn_type](coll_id, context)
+    var connector = new env.Connectors[conn_type]({}, context)
     cnsl.clean_log(cnsl.colors.FgWhite + cnsl.colors.Dim + JSON.stringify(context, undefined, 4));
 
     await connector.connect()
@@ -73,7 +69,7 @@ const function_module = {
   methods: {
     PUT: {
       function: put,
-      required_keys: ['collection_id', 'connector_type', 'context']
+      required_keys: ['connector_type', 'context']
     }
   },
 }
