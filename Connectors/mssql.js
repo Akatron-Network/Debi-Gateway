@@ -30,8 +30,7 @@ class ConnectorMSSQL {
     this.collection = collection
     this.sqlConfig = this.fixconfig(sqlConfig)
 
-    // console.log(collection);
-    //todo Get collection data from api host then remake the getConnector function
+    //todo Change collection variable to db scheme id
   }
 
   fixconfig(sqlConfig) {
@@ -86,58 +85,68 @@ class ConnectorMSSQL {
 
 
   //* Query Builder
-
-  //. Query Json Example
-  // {
-  //   table: "TBLCAHAR",
-  //   select: {
-  //     "CARI_KOD": true,
-  //     "ALACAK": "SUM",
-  //     "BORC": "SUM",
-  //     "{Bakiye}": "ALACAK - BORC"
-  //   },
-  //   "where": {
-  //     "AND": [
-  //       { "RAPOR_KODU5": { "equals": "BURSA" } },
-  //       { "OR": [ 
-  //         { "CARI_IL": { "not": "BURSA"} }, 
-  //         { "CARI_IL": { "not": "IZMIR" } } 
-  //       ]}
-  //     ]
-  //   },
-  //   includes: [
-  //     {
-  //       "table": "TBLCASABIT",
-  //       "type": "INNER",
-  //       "on": {
-  //         "CARI_KOD": "CARI_KOD"
-  //       },
-  //       "select": {
-  //         "CARI_ISIM": true
-  //       },
-  //       "where": {
-  //         "AND": [
-  //           { "TARIH": { "bte": "2022-09-01" } }
-  //         ]
-  //       }
-  //     },
-  //     {
-  //       "table": "TBLCASABITEK",
-  //       "type": "INNER",
-  //       "on": {
-  //         "CARI_KOD": "CARI_KOD"
-  //       },
-  //       "select": {
-  //         "TCKIMLIKNO": true
-  //       }
-  //     }
-  //   ],
-  //   group: [],""
-  //   order: {
-  //     "CARI_KOD": "ASC"
-  //   }
-  // }
-  //. Returns string
+  /*
+. Query Json Example
+  {
+    table: "TBLCAHAR",
+    select: {
+      "CARI_KOD": true,
+      "ALACAK": "SUM",
+      "BORC": "SUM",
+      "{Bakiye}": "ALACAK - BORC"
+    },
+    "where": {
+      "AND": [
+        { "RAPOR_KODU5": { "equals": "BURSA" } },
+        { "OR": [ 
+          { "CARI_IL": { "not": "BURSA"} }, 
+          { "CARI_IL": { "not": "IZMIR" } } 
+        ]}
+      ]
+    },
+*   Easy to use where conditions (if used where_plan, where is dismissed)
+    "where_plain": [
+      { "RAPOR_KODU5": { "equals": "BURSA" } },
+      "OR",
+      { "RAPOR_KODU5": { "equals": "BURSA" } },
+      "AND",
+      { "RAPOR_KODU5": { "equals": "BURSA" } }
+    ],
+*   --------------------------------------------
+    includes: [
+      {
+        "table": "TBLCASABIT",
+        "type": "INNER",
+        "on": {
+          "CARI_KOD": "CARI_KOD"
+        },
+        "select": {
+          "CARI_ISIM": true
+        },
+        "where": {
+          "AND": [
+            { "TARIH": { "bte": "2022-09-01" } }
+          ]
+        }
+      },
+      {
+        "table": "TBLCASABITEK",
+        "type": "INNER",
+        "on": {
+          "CARI_KOD": "CARI_KOD"
+        },
+        "select": {
+          "TCKIMLIKNO": true
+        }
+      }
+    ],
+    group: [],""
+    order: {
+      "CARI_KOD": "ASC"
+    }
+  }
+  . Returns string
+  */
   query_build(qjson) {
     // Create aliases for tables
     qjson = this.query_alias_generator(qjson)
@@ -147,7 +156,7 @@ class ConnectorMSSQL {
     var where = []
 
     //* Generate select section
-    if (qjson.select) {
+    if (qjson.select && Object.keys(qjson.select).length > 0) {
       for (var s in qjson.select) {               //* Main table's columns (loop the select list)
         if (qjson.select[s] === true) {           // if selecting directly: select: { 'CARI_KOD': true }
           select.push(qjson.alias + "." + s)      // add to select list: 'A.CARI_KOD'
@@ -188,8 +197,10 @@ class ConnectorMSSQL {
         }
       }
     }
+    else select.push('*')
 
-    if (qjson.where) { where.push(this.operator_build(qjson.where, qjson.alias)) }
+    if (qjson.where_plain) { where.push(this.plain_operator_build(qjson.where_plain, qjson.alias)) }
+    else if (qjson.where) { where.push(this.operator_build(qjson.where, qjson.alias)) }
 
     var from = qjson.table + " " + qjson.alias
 
@@ -207,9 +218,8 @@ class ConnectorMSSQL {
 
         joinstr += conds.join(' AND ')
 
-        if (ict.where) {
-          where.push(this.operator_build(ict.where, ict.alias))
-        }
+        if (ict.where_plain) { where.push(this.plain_operator_build(ict.where_plain, ict.alias)) }
+        else if (ict.where) { where.push(this.operator_build(ict.where, ict.alias)) }
 
 
         joins.push(joinstr)
@@ -248,13 +258,9 @@ class ConnectorMSSQL {
 
     var tab = "    "
     var qstr =  "SELECT \n" + tab + select.join(', \n' + tab) + " \n"
-    
     qstr += "FROM " + from + "\n" + tab + joins.join(' \n' + tab) + " \n"
-
     qstr += (where.length > 0) ? " WHERE \n" + tab + where.join(" AND \n" + tab) + " \n" : ""
-
     qstr += "GROUP BY \n" + tab + groupby.join(', \n' + tab) + " \n"
-
     qstr += (qjson.order) ? "ORDER BY \n" + tab + order.join(', \n' + tab) : ""
 
     return qstr
@@ -321,6 +327,23 @@ class ConnectorMSSQL {
 
     return general_conditions.join(' AND ')     // connect all operators with AND
   }
+
+  //* Plain operators build
+  plain_operator_build(object, alias) {
+    var general_conditions = []
+
+    for (var op of object) {
+      if (typeof(op) === 'string') {
+        general_conditions.push(op)
+      }
+      else {
+        general_conditions.push(this.condition_build(op, alias))
+      }
+    }
+
+    return general_conditions.join(' ')
+  }
+
 
   //* Single condition builder
   // Returns string

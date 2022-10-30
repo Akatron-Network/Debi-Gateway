@@ -25,6 +25,15 @@ app.use(queryParser({
   parseNumber: true
 }))
 
+
+/*
+TODO    Remake the gateway
+      * Get all methods and class from service
+      * Search for the nodejs vm module
+      . vm.runInThisContext(code, [filename])
+*/
+
+
 router.construct(app);
 
 const fixture = path.join(__dirname, 'user.ini')
