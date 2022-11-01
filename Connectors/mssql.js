@@ -199,7 +199,7 @@ class ConnectorMSSQL {
     }
     else select.push('*')
 
-    if (qjson.where_plain) { where = where.concat(this.plain_operator_build(qjson.where_plain, qjson.alias)) }
+    if (qjson.where_plain && qjson.where_plain.length > 0) { where.push(this.plain_operator_build(qjson.where_plain, qjson.alias)); console.log(this.plain_operator_build(qjson.where_plain, qjson.alias)); }
     else if (qjson.where) { where.push(this.operator_build(qjson.where, qjson.alias)) }
 
     var from = qjson.table + " " + qjson.alias
@@ -218,7 +218,10 @@ class ConnectorMSSQL {
 
         joinstr += conds.join(' AND ')
 
-        if (ict.where_plain) { where = where.concat(this.plain_operator_build(ict.where_plain, ict.alias)) }
+        if (ict.where_plain && ict.where_plain.length > 0) { 
+          try { where.push(this.plain_operator_build(ict.where_plain, ict.alias)) }
+          catch (e) { console.error(e) }
+        }
         else if (ict.where) { where.push(this.operator_build(ict.where, ict.alias)) }
 
 
@@ -255,6 +258,7 @@ class ConnectorMSSQL {
 
       }
     }
+
 
     var tab = "    "
     var qstr =  "SELECT \n" + tab + select.join(', \n' + tab) + " \n"
@@ -336,12 +340,13 @@ class ConnectorMSSQL {
       if (typeof(op) === 'string') {
         general_conditions.push(op)
       }
-      else {
+      else if (typeof(op) === 'object') {
+        if (Object.keys(op) === 0) { continue; }
         general_conditions.push(this.condition_build(op, alias))
       }
     }
 
-    return general_conditions
+    return general_conditions.join(' ')
   }
 
 
