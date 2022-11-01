@@ -199,7 +199,7 @@ class ConnectorMSSQL {
     }
     else select.push('*')
 
-    if (qjson.where_plain) { where.push(this.plain_operator_build(qjson.where_plain, qjson.alias)) }
+    if (qjson.where_plain) { where = where.concat(this.plain_operator_build(qjson.where_plain, qjson.alias)) }
     else if (qjson.where) { where.push(this.operator_build(qjson.where, qjson.alias)) }
 
     var from = qjson.table + " " + qjson.alias
@@ -218,7 +218,7 @@ class ConnectorMSSQL {
 
         joinstr += conds.join(' AND ')
 
-        if (ict.where_plain) { where.push(this.plain_operator_build(ict.where_plain, ict.alias)) }
+        if (ict.where_plain) { where = where.concat(this.plain_operator_build(ict.where_plain, ict.alias)) }
         else if (ict.where) { where.push(this.operator_build(ict.where, ict.alias)) }
 
 
@@ -341,7 +341,7 @@ class ConnectorMSSQL {
       }
     }
 
-    return general_conditions.join(' ')
+    return general_conditions
   }
 
 
