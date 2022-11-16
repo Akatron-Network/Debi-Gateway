@@ -78,10 +78,27 @@ class ConnectorMSSQL {
     var ans = await this.query(tsql)
     
     //* Fix the recordset tag
-    if (ans[0]) { return [ans[0], ans[1].recordset]}
+    if (ans[0]) {
+      //. Fix wrong chars in strings
+      let fixedrecords = ans[1].recordset
+      for (let r of fixedrecords) {
+        for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
+      }
+      
+      return [ans[0], ans[1].recordset]
+    }
     else { return ans }
   }
 
+  //* Language fixer for NETSIS
+  langfix(str) {
+    if (typeof(str) !== 'string') { return str }
+    return str
+      .replaceAll("Ý", "İ")
+      .replaceAll("Þ", "Ş")
+      .replaceAll("Ð", "Ğ")
+      .replaceAll("ý", "ı")
+  }
 
 
   //* Query Builder
