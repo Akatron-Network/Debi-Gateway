@@ -100,7 +100,6 @@ class ConnectorMSSQL {
       .replaceAll("ý", "ı")
   }
 
-
   //* Query Builder
   /*
 . Query Json Example
@@ -121,7 +120,7 @@ class ConnectorMSSQL {
         ]}
       ]
     },
-*   Easy to use where conditions (if used where_plan, where is dismissed)
+*   Easy to use where conditions  //! (if used where_plan, where is dismissed)
     "where_plain": [
       { "RAPOR_KODU5": { "equals": "BURSA" } },
       "OR",
@@ -157,10 +156,11 @@ class ConnectorMSSQL {
         }
       }
     ],
-    group: [],""
     order: {
       "CARI_KOD": "ASC"
-    }
+    },
+    limit: 100,
+    offset: 0,
   }
   . Returns string
   */
@@ -246,8 +246,6 @@ class ConnectorMSSQL {
       }
     }
 
-    //todo make order by list
-    //todo get the column alias from list, search for it if its collapsed column use with it like 'ORDER BY SUM(A.BORC) ASC'
     var order = []
     
     if (qjson.order) {
@@ -276,13 +274,16 @@ class ConnectorMSSQL {
       }
     }
 
+    if (order.length === 0) { order.push(select[0] + " ASC") }
 
     var tab = "    "
     var qstr =  "SELECT \n" + tab + select.join(', \n' + tab) + " \n"
-    qstr += "FROM " + from + "\n" + tab + joins.join(' \n' + tab) + " \n"
-    qstr += (where.length > 0) ? " WHERE \n" + tab + where.join(" AND \n" + tab) + " \n" : ""
-    qstr += "GROUP BY \n" + tab + groupby.join(', \n' + tab) + " \n"
-    qstr += (qjson.order) ? "ORDER BY \n" + tab + order.join(', \n' + tab) : ""
+      qstr += "FROM " + from + "\n" + tab + joins.join(' \n' + tab) + " \n"
+      qstr += (where.length > 0) ? " WHERE \n" + tab + where.join(" AND \n" + tab) + " \n" : ""
+      qstr += "GROUP BY \n" + tab + groupby.join(', \n' + tab) + " \n"
+      qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n"
+      qstr += "OFFSET " + ((qjson.offset) ? qjson.offset : 0) + " ROWS \n"
+      qstr += "FETCH FIRST " + ((qjson.limit) ? qjson.limit : 200) + " ROWS ONLY \n"
 
     return qstr
   }

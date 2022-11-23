@@ -34,7 +34,7 @@ function resp_answ (res, ans) {
 //* General response
 function resp (res, succ, data, status, extra = undefined) {
   // Calculate the size of data
-  if (data) { cnsl.clean_log(cnsl.colors.FgGreen + "Response: (" + misc.sizeOfJson(data).toFixed(2) + " KB) " + cnsl.colors.Dim + JSON.stringify(data)) }
+  if (data) { cnsl.clean_log(cnsl.colors.FgGreen + "Response: (" + misc.sizeOfJson(data).toFixed(2) + " KB) " + cnsl.colors.Dim + JSON.stringify(data).substring(0,50) + "...") }
 
   if (data === undefined) {
     return res.status(status).json( {"Success": succ, ...extra} )
