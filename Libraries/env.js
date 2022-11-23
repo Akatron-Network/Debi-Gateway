@@ -57,6 +57,10 @@ var User = {}
 //.   }
 var Settings = {}
 
+
+
+var Logs_Path = require('path').resolve(__dirname, '../logs')
+
 module.exports = {
   Functions,
   Function_Settings,
@@ -66,5 +70,6 @@ module.exports = {
   DBTranslateData,
   Token,
   User,
-  Settings
+  Settings,
+  Logs_Path
 }

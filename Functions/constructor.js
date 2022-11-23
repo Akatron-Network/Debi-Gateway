@@ -74,7 +74,7 @@ function construct_routes(app) {
 
     var ip = req.ip
     
-    cnsl.log(method + ": " + "(" + (misc.sizeOfJson(body).toFixed(2)) + "KB" + ") " + req.baseUrl + cnsl.colors.Dim + " // " + JSON.stringify(body).substring(0,50) + "... -> " + ip)
+    cnsl.info_log(method + ": " + "(" + (misc.sizeOfJson(body).toFixed(2)) + "KB" + ") " + req.baseUrl + cnsl.colors.Dim + " // " + JSON.stringify(body).substring(0,50) + "... -> " + ip)
     
 
     //. Control is the method acceptable
@@ -85,7 +85,10 @@ function construct_routes(app) {
     if (!bodyControl[0]) { return resp.resp_error(res, bodyControl[1]) }
     
     //. Execute the method
-    return func.methods[method].function(req, res, body)
+    try { return await func.methods[method].function(req, res, body) }
+    catch (e) { 
+      cnsl.error_log(e.stack);
+      return resp.resp_error(res, e.message) }
     
   })
   cnsl.clean_log(cnsl.colors.FgYellow + cnsl.colors.Dim + "Function Routes Integrated")

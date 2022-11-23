@@ -55,18 +55,15 @@ class ConnectorMSSQL {
 
   //* Run a query
   //. Returns [state, answer/error]
-  async query(tsql) {
+  async query(tsql) {    
     try {
       await this.connect()
       var res = await sql.query(tsql)
       this.disconnect()
     }
-    catch (exc) {
-      this.disconnect()
-      cnsl.error_log(exc.message)
-      cnsl.clean_log(tsql)
-      console.log(exc);
-      return [false, exc.message]
+    catch (e) {
+      cnsl.error_log("T-SQL:\n" + tsql)
+      throw e
     }
     return [true, res]
   }
@@ -283,7 +280,7 @@ class ConnectorMSSQL {
       qstr += "GROUP BY \n" + tab + groupby.join(', \n' + tab) + " \n"
       qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n"
       qstr += "OFFSET " + ((qjson.offset) ? qjson.offset : 0) + " ROWS \n"
-      qstr += "FETCH FIRST " + ((qjson.limit) ? qjson.limit : 200) + " ROWS ONLY \n"
+      qstr += "FETCH FIRST " + ((qjson.limit) ? qjson.limit : 200) + " ROWS ONLY"
 
     return qstr
   }
