@@ -271,7 +271,7 @@ class ConnectorMSSQL {
       }
     }
 
-    if (order.length === 0) { order.push(select[0] + " ASC") }
+    if (order.length === 0) { order.push(select[0].substring(select[0].indexOf('AS') + 3) + " ASC") }
 
     var tab = "    "
     var qstr =  "SELECT \n" + tab + select.join(', \n' + tab) + " \n"
