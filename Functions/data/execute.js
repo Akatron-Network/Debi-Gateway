@@ -16,11 +16,29 @@ async function post(req, res, body) {
   //* Get connector
   var Connector = await connector.getConnector(coll_id)
 
-  var ans = await Connector.execute(query) 
+  //* Execute from raw query
+  if (body.query) {
+    var ans = await Connector.execute(body.query, body.columns) 
+  }
+
+  //* Execute from raw union
+  if (body.union) {
+    var ans = await Connector.raw_union_execute(body.union, body.columns)
+  }
+
+  //* Execute from saved model
+  if (body.model_id) {
+    var ans = await Connector.model_execute(body.model_id, body.columns)
+  }
+
+  //* Execute from saved union
+  if (body.union_id) {
+    var ans = await Connector.union_execute(body.union_id)
+  }
+
   if (!ans[0]) { return resp.resp_error(res, ans[1]) }
 
   return resp.resp_success(res, ans[1]);
-
 }
 
 
@@ -53,7 +71,7 @@ const function_module = {
   methods: {
     POST: {
       function: post,
-      required_keys: ["collection_id", "query"],
+      required_keys: ["collection_id"],
     }
   },
 }

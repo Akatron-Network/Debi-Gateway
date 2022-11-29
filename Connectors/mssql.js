@@ -1,36 +1,39 @@
 const sql = require('mssql')
 const cnsl = require('../Libraries/console');
 const misc = require('../Libraries/misc');
+const {get_model} = require('../Requests/data_model');
+const {get_union} = require('../Requests/data_union');
 const DBTranslate = require('../Requests/translate').DBTranslate;
 
-//* Microsoft SQL Server Connector
-//. Example use:
-//.
-//. var sqlconfig = {
-//.   user: '',
-//.   password: '',
-//.   database: '',
-//.   server: '',
-//   pool: {
-//     max: 10,
-//     min: 0,
-//     idleTimeoutMillis: 30000
-//   },
-//.   options: {
-//.     encrypt: false, // for azure
-//.     trustServerCertificate: false // change to true for local dev / self-signed certs
-//.   }
-//. }
-//. var mssqladap = new MssqlAdapter(sqlconfig)
+/* //-- Microsoft SQL Server Connector
+
+. Example use:
+.
+. var sqlconfig = {
+.   user: '',
+.   password: '',
+.   database: '',
+.   server: '',
+_   pool: {
+_     max: 10,
+_     min: 0,
+_     idleTimeoutMillis: 30000
+_   },
+.   options: {
+.     encrypt: false, // for azure
+.     trustServerCertificate: false // change to true for local dev / self-signed certs
+.   }
+. }
+
+. var connector = new ConnectorMSSQL(collection_id, sqlconfig)
+*/
 
 class ConnectorMSSQL {
   
-  //. Construct the class
+  //* Construct the class
   constructor(collection, sqlConfig) {
     this.collection = collection
     this.sqlConfig = this.fixconfig(sqlConfig)
-
-    //todo Change collection variable to db scheme id
   }
 
   fixconfig(sqlConfig) {
@@ -47,15 +50,15 @@ class ConnectorMSSQL {
     return sqlConfig
   }
 
-  //. Connect to the database
+  //* Connect to the database
   async connect() { return sql.connect(this.sqlConfig) }
 
-  //. Disconnect
+  //* Disconnect
   async disconnect() { return sql.close() }
 
-  //* Run a query
-  //. Returns [state, answer/error]
-  async query(tsql) {    
+/* //* Run a query
+  . Returns [state, answer/error] */
+  async query(tsql) {
     try {
       await this.connect()
       var res = await sql.query(tsql)
@@ -65,40 +68,147 @@ class ConnectorMSSQL {
       cnsl.error_log("T-SQL:\n" + tsql)
       throw e
     }
-    return [true, res]
+    return res
   }
 
 
-  //* Execute directly from json query
-  async execute(qjson) {
+
+  //---- Executioners ----//
+
+/* //* Execute directly from json query
+  .   qjson:    query builder's query
+  .   columns:  ['COL1', 'COL2'] */
+  async execute(qjson, columns) {
     var tsql = this.query_build(qjson)
+
+    //. Add columns filter to sql
+    if (columns) tsql = "SELECT " + columns.join(', ') + " FROM (" + tsql + ") AKA"
+
+    //. Get Response from db
     var ans = await this.query(tsql)
     
-    //* Fix the recordset tag
-    if (ans[0]) {
-      //. Fix wrong chars in strings
-      let fixedrecords = ans[1].recordset
-      for (let r of fixedrecords) {
-        for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
+    //. Fix wrong chars in strings
+    let fixedrecords = ans.recordset
+    for (let r of fixedrecords) for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
+
+    return [true, fixedrecords]
+  }
+
+/* //* Execute directly from union object
+  .   union:  union data */
+  async raw_union_execute(union) {
+    let tsql = await this.union_query_build(union)
+
+    //. Get Response from db
+    var ans = await this.query(tsql)
+    
+    //. Fix wrong chars in strings
+    let fixedrecords = ans.recordset
+    for (let r of fixedrecords) for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
+
+    return [true, fixedrecords]
+  }
+
+  //todo add extra condition and order
+/* //* Execute from model
+  .   model_id:   saved model's id
+  .   columns:    ['COL1', 'COL2'] */
+  async model_execute(model_id, columns) {
+    var modeldata = await get_model(model_id)
+    var qjson = modeldata.query
+    return await this.execute(qjson, columns)
+  }
+
+/* //* Execute from union
+  .   union_id:   saved union's id */
+  async union_execute(union_id) {
+    var uniondata = await get_union(union_id)
+    try { var usql = await this.union_query_build(uniondata) }
+    catch (e) { console.log(e); }
+
+    //. Get Response from db
+    var ans = await this.query(usql)
+    
+    //. Fix wrong chars in strings
+    let fixedrecords = ans.recordset
+    for (let r of fixedrecords) for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
+
+    return [true, fixedrecords]
+  }
+
+
+  //---- Query Builders ----//
+
+/* //* Union Query Builder
+  . ujson: {
+  .   "columns": {
+  .     "Cari_Kod": true,
+  .     "Cari_Isim": true
+  .   },
+  .   "childs": [
+  .     {
+  .       "union_child_id": 4,
+  .       "union_id": 3,
+  .       "child_id": 20,
+  .       "child_type": "model",
+  .       "child_name": "IZMIR SUBE",
+  .       "columns": [
+  .         "CARI_KOD",
+  .         "CARI_ISIM"
+  .       ]
+  .     },
+  .     {
+  .       "union_child_id": 5,
+  .       "union_id": 3,
+  .       "child_id": 21,
+  .       "child_type": "model",
+  .       "child_name": "MANISA SUBE",
+  .       "columns": [
+  .         "CARI_KOD",
+  .         "CARI_ISIM"
+  .       ]
+  .     }
+  .   ]
+  . }
+*/
+  async union_query_build(ujson) {
+    let query_list = []                               //. list of queries
+    let main_columns = Object.keys(ujson.columns)     //. list of main columns
+
+    for (let child of ujson.childs) {                                             //? Loop for childs
+
+      if (child.columns.length !== main_columns.length) {                         //! error: columns length not match
+        throw "Union column count is not match this child: " + child.child_name   //. throw the error
       }
-      
-      return [ans[0], ans[1].recordset]
+
+      let alt_query = ""
+
+      if (child.child_type === "model") {                                           //? child is model
+        let modeldata = await get_model(child.child_id)   //. Get the model's data
+        let qjson = modeldata.query                                                 //. Get the model's query
+
+        alt_query = this.query_build(qjson)                         //. push to the main list of queries
+      }
+
+      if (child.child_type === "union") {                                                           //? child is union
+        var childunion = await get_union(child.child_id)  //. Get the union data
+        alt_query = await this.union_query_build(childunion)                                        //. call itself to get query
+      }
+
+      let query =                                           //. create a query for selected coluns
+      "SELECT '" + child.child_name + "' as CATEGORY, " + 
+      child.columns.join(', ') + 
+      " FROM (" + alt_query + ") " + 
+      child.child_name.replaceAll(' ', '_')
+
+    query_list.push(query)   
+
     }
-    else { return ans }
-  }
 
-  //* Language fixer for NETSIS
-  langfix(str) {
-    if (typeof(str) !== 'string') { return str }
-    return str
-      .replaceAll("Ý", "İ")
-      .replaceAll("Þ", "Ş")
-      .replaceAll("Ð", "Ğ")
-      .replaceAll("ý", "ı")
+    return query_list.join('\n\nUNION ALL\n\n')
   }
-
-  //* Query Builder
-  /*
+  
+/* //* Query Builder
 . Query Json Example
   {
     table: "TBLCAHAR",
@@ -213,8 +323,12 @@ class ConnectorMSSQL {
     }
     else select.push('*')
 
-    if (qjson.where_plain && qjson.where_plain.length > 0) { where.push(this.plain_operator_build(qjson.where_plain, qjson.alias)); console.log(this.plain_operator_build(qjson.where_plain, qjson.alias)); }
-    else if (qjson.where) { where.push(this.operator_build(qjson.where, qjson.alias)) }
+    if (qjson.where_plain && qjson.where_plain.length > 0) { 
+      where.push(this.plain_operator_build(qjson.where_plain, qjson.alias));
+    }
+    else if (qjson.where) { 
+      where.push(this.operator_build(qjson.where, qjson.alias)) 
+    }
 
     var from = qjson.table + " " + qjson.alias
 
@@ -307,22 +421,24 @@ class ConnectorMSSQL {
     return qjson
   }
 
-  //* Root operators build
-  //. object = {
-  //.   "AND": [
-  //.     { "RAPOR_KODU5": { "equals": "BURSA" } },
-  //.     { "OR": [ 
-  //.         { "CARI_IL": { "not": "BURSA"} }, 
-  //.         { "CARI_IL": { "not": "IZMIR" } } 
-  //.       ] 
-  //.     }
-  //.   ],
-  //.   "OR" [
-  //.     { "CARI_IL": { "not": "ANKARA"} },
-  //.     { "CARI_IL": { "not": "KONYA"} }
-  //.   ]
-  //. }
-  // Example Return: '(RAPOR_KODU5 = BURSA AND (CARI_IL != BURSA OR CARI_IL != IZMIR)) AND (CARI_IL != ANKARA OR CARI_IL != KONYA)'
+/* //* Root operators build
+  . object = {
+  .   "AND": [
+  .     { "RAPOR_KODU5": { "equals": "BURSA" } },
+  .     { "OR": [ 
+  .         { "CARI_IL": { "not": "BURSA"} }, 
+  .         { "CARI_IL": { "not": "IZMIR" } } 
+  .       ] 
+  .     }
+  .   ],
+  .   "OR" [
+  .     { "CARI_IL": { "not": "ANKARA"} },
+  .     { "CARI_IL": { "not": "KONYA"} }
+  .   ]
+  . }
+  
+  ? Example Return: 
+  . '(RAPOR_KODU5 = BURSA AND (CARI_IL != BURSA OR CARI_IL != IZMIR)) AND (CARI_IL != ANKARA OR CARI_IL != KONYA)' */
   operator_build(object, alias) {
     var general_conditions = []
     
@@ -365,10 +481,10 @@ class ConnectorMSSQL {
   }
 
 
-  //* Single condition builder
-  // Returns string
-  //. Example object: { "CARI_IL": { "not": "BURSA"} }
-  //. Example return: CARI_IL != 'BURSA'
+/* //* Single condition builder
+  ? Returns string
+  . Example object: { "CARI_IL": { "not": "BURSA"} }
+  . Example return: CARI_IL != 'BURSA' */
   condition_build(object, alias) {
     let key = Object.keys(object)[0]
     const operant = Object.keys(object[key])[0]
@@ -393,21 +509,20 @@ class ConnectorMSSQL {
   }
 
 
-  //-- Database Based Functions
+  //---- Database Based Functions ----//
 
-  //* Get all tables in database
-  //. Returns Array
-  //  Views, columns and relations can be included
-  //! including columns and relations may cause long time to execute
+/* //* Get all tables in database
+  . Returns Array
+    Views, columns and relations can be included
+  ! including columns and relations may cause long time to execute */
   async get_tables(views = false, columns = false, relations = false) {
     let tables_sql = "SELECT TABLE_NAME as table_id, TABLE_TYPE as type FROM INFORMATION_SCHEMA.TABLES"
     if (!views) { tables_sql += " WHERE TABLE_TYPE != 'VIEW'"}
     tables_sql += " ORDER BY TABLE_TYPE, TABLE_NAME"
 
     var tables_list = await this.query(tables_sql)
-    if (!tables_list[0]) { throw tables_list[1] }
     
-    tables_list = tables_list[1].recordset
+    tables_list = tables_list.recordset
 
     var translate_list = []
     if (this.collection.db_scheme_id) { 
@@ -456,11 +571,11 @@ class ConnectorMSSQL {
   }
 
 
-  //-- Table Based Functions
+  //---- Table Based Functions ----//
 
-  //* Get table's detailed information
-  //. Returns JSON
-  //  columns and relations can be included
+/* //* Get table's detailed information
+  . Returns JSON
+    columns and relations can be included */
   async get_table_info(tablename, columns = true, relations = false) {
     
     var translate_list = []
@@ -504,8 +619,8 @@ class ConnectorMSSQL {
 
   }
 
-  //* Get specified table's columns 
-  //. Returns Array
+/* //* Get specified table's columns 
+  . Returns Array */
   async get_table_columns(tablename, translate_list = []) {
     const columns_sql = [
       "SELECT COLUMN_NAME as name, DATA_TYPE as type,",
@@ -520,9 +635,7 @@ class ConnectorMSSQL {
 
     var columns_resp = await this.query(columns_sql.join("\n"))
 
-    if (!columns_resp[0]) { throw columns_resp[1] }
-
-    var cols = columns_resp[1].recordset
+    var cols = columns_resp.recordset
 
     for (var c = 0; c < cols.length; c++) {
       var trnsl_col = await DBTranslate.find_from_translate_list(translate_list, tablename, cols[c].name)
@@ -538,8 +651,8 @@ class ConnectorMSSQL {
 
   }
 
-  //* Get specified table's inner or outer relations
-  //. Returns Array
+/* //* Get specified table's inner or outer relations
+  . Returns Array */
   async get_relations(tablename, inner = true, translate_list = []) {    
     const relation_sql = [
       "SELECT",
@@ -571,9 +684,7 @@ class ConnectorMSSQL {
         const inner_rel_sql = "SELECT * FROM " + relation_view + " WHERE RV.table_name = '" + tablename + "'"
         const inner_rel_resp = await this.query(inner_rel_sql) 
 
-        if (!inner_rel_resp[0]) { throw inner_rel_resp[1] }
-
-        var inner_rels = inner_rel_resp[1].recordset
+        var inner_rels = inner_rel_resp.recordset
         var inner_tables = []
 
         for (let ir = 0; ir < inner_rels.length; ir++) {
@@ -606,9 +717,7 @@ class ConnectorMSSQL {
         const outer_rel_sql = "SELECT * FROM " + relation_view + " WHERE RV.referenced_object = '" + tablename + "'"
         const outer_rel_resp = await this.query(outer_rel_sql) 
 
-        if (!outer_rel_resp[0]) { throw outer_rel_resp[1] }
-
-        var outer_rels = outer_rel_resp[1].recordset
+        var outer_rels = outer_rel_resp.recordset
         var outer_tables = []
 
         for (let or = 0; or < outer_rels.length; or++) {
@@ -637,6 +746,20 @@ class ConnectorMSSQL {
         return outer_tables
       }
       
+  }
+
+
+  
+  //---- Miscellaneous ----//
+  
+  //* Language fixer for NETSIS
+  langfix(str) {
+    if (typeof(str) !== 'string') { return str }
+    return str
+      .replaceAll("Ý", "İ")
+      .replaceAll("Þ", "Ş")
+      .replaceAll("Ð", "Ğ")
+      .replaceAll("ý", "ı")
   }
 
 

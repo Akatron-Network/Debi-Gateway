@@ -32,7 +32,6 @@ async function setup() {
   cnsl.clean_log(cnsl.colors.FgYellow + "[+] " + cnsl.colors.FgWhite + "Connectors: " + cnsl.colors.Dim + Object.keys(env.ConnectorConfigs).join(", "))
   cnsl.clean_log(cnsl.colors.FgYellow + "[+] " + cnsl.colors.FgWhite + "Translates: " + cnsl.colors.Dim + Object.keys(env.DBTranslateData).join(", "))
   cnsl.clean_log(cnsl.colors.FgYellow + cnsl.colors.Dim + "-> " + (Math.floor((misc.getTimestamp() - st_time)*1000)) + " ms \n")
-
 }
 
 

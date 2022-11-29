@@ -59,4 +59,3 @@ var server = app.listen(8001, function() {
 
 reqmain.setup();
 cnsl.get_latest_file(true)
-
