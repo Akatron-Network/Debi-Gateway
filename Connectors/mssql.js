@@ -281,39 +281,48 @@ class ConnectorMSSQL {
 
     //* Generate select section
     if (qjson.select && Object.keys(qjson.select).length > 0) {
-      for (var s in qjson.select) {               //* Main table's columns (loop the select list)
-        if (qjson.select[s] === true) {           // if selecting directly: select: { 'CARI_KOD': true }
-          select.push(qjson.alias + "." + s)      // add to select list: 'A.CARI_KOD'
-          groupby.push(qjson.alias + "." + s)     // add to group by list: 'A.CARI_KOD'
+      for (var s in qjson.select) {                                 //* Main table's columns (loop the select list)
+        if (qjson.select[s] === true) {                             // if selecting directly: select: { 'CARI_KOD': true }
+          select.push(qjson.alias + "." + s)                        // add to select list: 'A.CARI_KOD'
+          groupby.push(qjson.alias + "." + s)                       // add to group by list: 'A.CARI_KOD'
         }
-        else if (s.startsWith("{") && s.endsWith("}")) {                    // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
-          let customcol = s.substring(1, s.length - 1)                      // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
+        else if (s.startsWith("{") && s.endsWith("}")) {            // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
+          let customcol = s.substring(1, s.length - 1)              // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
           select.push("(" + qjson.select[s] + ") AS " + customcol)
+
+          if (qjson.select[s].includes('DATEPART')) {               // if custom col is datepart
+            groupby.push(qjson.select[s])                           // add it to groupby array
+          }
         }
-        else {                                                              // if not selecting directly: select: { 'BORC': 'SUM' }
-          select.push(                                                      // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
+        else {                                                      // if not selecting directly: select: { 'BORC': 'SUM' }
+          select.push(                                              // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
             qjson.select[s] + "(" + qjson.alias + "." + s + ")" + 
             " AS " + s + "_" + qjson.select[s]
           )
         }
       }
       
-      for (var ic in qjson.includes) {                   //* Including columns (loop the includes list)
-        if (!qjson.includes[ic].select) { continue; }    // if there is no select, pass
+      for (var ic in qjson.includes) {                              //* Including columns (loop the includes list)
+        if (!qjson.includes[ic].select) { continue; }               // if there is no select, pass
 
-        for (var ics in qjson.includes[ic].select) {    // loop the selects in includes
-          var icselm = qjson.includes[ic].select[ics]   // The value in include's select { "select": { "CARI_ISIM": true } } icselm = true
+        for (var ics in qjson.includes[ic].select) {                // loop the selects in includes
+          var icselm = qjson.includes[ic].select[ics]               // The value in include's select { "select": { "CARI_ISIM": true } } icselm = true
           
-          if (icselm === true) {                                  // if selecting directly: select: { 'CARI_KOD': true }
-            select.push(qjson.includes[ic].alias + "." + ics)     // add to select list: 'A.CARI_KOD'
-            groupby.push(qjson.includes[ic].alias + "." + ics)    // add to group by list: 'A.CARI_KOD'
+          if (icselm === true) {                                    // if selecting directly: select: { 'CARI_KOD': true }
+            select.push(qjson.includes[ic].alias + "." + ics)       // add to select list: 'A.CARI_KOD'
+            groupby.push(qjson.includes[ic].alias + "." + ics)      // add to group by list: 'A.CARI_KOD'
           }
-          else if (ics.startsWith("{") && ics.endsWith("}")) {                    // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
-            let customcol = ics.substring(1, ics.length - 1)                      // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
+          else if (ics.startsWith("{") && ics.endsWith("}")) {      // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
+            let customcol = ics.substring(1, ics.length - 1)        // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
             select.push("(" + icselm + ") AS " + customcol)
+
+            if (icselm.includes('DATEPART')) {                      // if custom col is datepart
+              groupby.push(icselm)                                  // add it to groupby array
+            }
+
           }
-          else {                                                                      // if not selecting directly: select: { 'BORC': 'SUM' }
-            select.push(                                                              // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
+          else {                                                    // if not selecting directly: select: { 'BORC': 'SUM' }
+            select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
               icselm + "(" + qjson.includes[ic].alias + "." + ics + 
               ") AS " + ics + "_" + icselm
             )
