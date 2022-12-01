@@ -24,6 +24,23 @@ async function getCollections() {
   return true;
 }
 
+async function getCollection(collection_id) {
+  let url = 
+    "http://" + 
+    env.Settings.APIHOST + 
+    ":" + env.Settings.APIPORT + 
+    env.Settings.APIGATEPATH_COLLECTIONS
+
+  let ans = await got(url, {
+    headers: {"Token": env.Token}, 
+    searchParams: {"collection_id": collection_id}
+  }).json()
+  
+  if (ans.Success) return ans.Data
+  else return null
+}
+
 module.exports = {
-  getCollections
+  getCollections,
+  getCollection
 }

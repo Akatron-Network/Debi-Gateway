@@ -606,7 +606,7 @@ class ConnectorMSSQL {
         outer: rel_outer
       }
     }
-
+    
     var source_colls = undefined
 
     if (columns) {
@@ -656,7 +656,7 @@ class ConnectorMSSQL {
       }
     }
 
-    return columns_resp[1].recordset
+    return columns_resp.recordset
 
   }
 

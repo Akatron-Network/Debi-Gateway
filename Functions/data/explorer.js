@@ -1,7 +1,7 @@
 const env = require('../../Libraries/env');
 const resp = require('../../Libraries/resp');
 const misc = require('../../Libraries/misc')
-const connector = require('../../Connectors/connector');
+const connector = require('../../Requests/connector');
 
 //-- Methods
 

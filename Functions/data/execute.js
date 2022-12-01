@@ -1,14 +1,13 @@
 const env = require('../../Libraries/env');
 const resp = require('../../Libraries/resp');
 const misc = require('../../Libraries/misc');
-const connector = require('../../Connectors/connector');
+const connector = require('../../Requests/connector');
 
 //-- Methods
 
 async function post(req, res, body) {
 
   var coll_id = body.collection_id
-  var query = body.query
 
   //* Control is there any defined connector?
   if (!env.ConnectorConfigs.hasOwnProperty(coll_id)) { return resp.resp_error(res, "collection's connector not defined.") }
