@@ -9,11 +9,11 @@ async function post(req, res, body) {
 
   var coll_id = body.collection_id
 
-  //* Control is there any defined connector?
-  if (!env.ConnectorConfigs.hasOwnProperty(coll_id)) { return resp.resp_error(res, "collection's connector not defined.") }
-
   //* Get connector
   var Connector = await connector.getConnector(coll_id)
+
+  //* Control is there any defined connector?
+  if (Connector == null) { return resp.resp_error(res, "collection's connector not defined.") }
 
   //* Execute from raw query
   if (body.query) {
