@@ -195,13 +195,18 @@ class ConnectorMSSQL {
         alt_query = await this.union_query_build(childunion)                                        //. call itself to get query
       }
 
-      let query =                                           //. create a query for selected coluns
-      "SELECT '" + child.child_name + "' as CATEGORY, " + 
-      child.columns.join(', ') + 
-      " FROM (" + alt_query + ") " + 
-      child.child_name.replaceAll(' ', '_')
+      let selection = []
+      for (let c in child.columns) {
+        selection.push(child.columns[c] + " AS " + main_columns[c])
+      }
 
-    query_list.push(query)   
+      let query =                                           //. create a query for selected coluns
+        "SELECT '" + child.child_name + "' as CATEGORY, " +
+        selection.join(', ') + 
+        " FROM (" + alt_query + ") " + 
+        child.child_name.replaceAll(' ', '_')
+
+      query_list.push(query)   
 
     }
 
@@ -394,16 +399,25 @@ class ConnectorMSSQL {
       }
     }
 
-    if (order.length === 0) { order.push(select[0].substring(select[0].indexOf('AS') + 3) + " ASC") }
-
     var tab = "    "
     var qstr =  "SELECT \n" + tab + select.join(', \n' + tab) + " \n"
       qstr += "FROM " + from + "\n" + tab + joins.join(' \n' + tab) + " \n"
       qstr += (where.length > 0) ? " WHERE \n" + tab + where.join(" AND \n" + tab) + " \n" : ""
       qstr += "GROUP BY \n" + tab + groupby.join(', \n' + tab) + " \n"
-      qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n"
-      qstr += "OFFSET " + ((qjson.offset) ? qjson.offset : 0) + " ROWS \n"
-      qstr += "FETCH FIRST " + ((qjson.limit) ? qjson.limit : 200) + " ROWS ONLY"
+
+      if (order.length > 0) qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n" 
+
+      if (qjson.limit) {
+        if (order.length === 0) { 
+          let ind = 0
+          while (select[ind].includes('AS')) { ind++; }
+          order.push(select[ind] + " ASC") 
+        }
+
+        qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n" 
+        qstr += "OFFSET " + ((qjson.offset) ? qjson.offset : 0) + " ROWS \n"
+        qstr += "FETCH FIRST " + qjson.limit + " ROWS ONLY"
+      }
 
     return qstr
   }
