@@ -27,7 +27,7 @@ async function post(req, res, body) {
 
   //* Execute from saved model
   if (body.model_id) {
-    var ans = await Connector.model_execute(body.model_id, body.columns)
+    var ans = await Connector.model_execute(body.model_id, body.columns, body.where_plain, body.order)
   }
 
   //* Execute from saved union

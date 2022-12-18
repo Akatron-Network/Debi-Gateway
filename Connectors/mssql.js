@@ -78,11 +78,18 @@ class ConnectorMSSQL {
 /* //* Execute directly from json query
   .   qjson:    query builder's query
   .   columns:  ['COL1', 'COL2'] */
-  async execute(qjson, columns) {
-    var tsql = this.query_build(qjson)
+  async execute(qjson, columns, extra_conditions, extra_order) {
+    var source = this.query_build(qjson)
+    var cols = (columns) ? columns.join(', ') : "*"
+    var conds = (extra_conditions) ? ("\nWHERE " + this.plain_operator_build(extra_conditions)) : ""
+    var order = ""
+    if (extra_order) {
+      let orderlist = []
+      for (let ord of Object.keys(extra_order)) orderlist.push(ord + " " + extra_order[ord])
+      order = "\nORDER BY " + orderlist.join(', ')
+    }
 
-    //. Add columns filter to sql
-    if (columns) tsql = "SELECT " + columns.join(', ') + " FROM (" + tsql + ") AKA"
+    var tsql = "SELECT " + cols + " FROM (" + source + ") AKA " + conds + order
 
     //. Get Response from db
     var ans = await this.query(tsql)
@@ -113,10 +120,10 @@ class ConnectorMSSQL {
 /* //* Execute from model
   .   model_id:   saved model's id
   .   columns:    ['COL1', 'COL2'] */
-  async model_execute(model_id, columns) {
+  async model_execute(model_id, columns, extra_conditions, extra_order) {
     var modeldata = await get_model(model_id)
     var qjson = modeldata.query
-    return await this.execute(qjson, columns)
+    return await this.execute(qjson, columns, extra_conditions, extra_order)
   }
 
 /* //* Execute from union
