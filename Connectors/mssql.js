@@ -127,13 +127,23 @@ class ConnectorMSSQL {
 
 /* //* Execute from union
   .   union_id:   saved union's id */
-  async union_execute(union_id) {
+  async union_execute(union_id, columns, extra_conditions, extra_order) {
     var uniondata = await get_union(union_id)
-    try { var usql = await this.union_query_build(uniondata) }
-    catch (e) { console.log(e); }
+    var source = await this.union_query_build(uniondata)
+
+    var cols = (columns) ? columns.join(', ') : "*"
+    var conds = (extra_conditions) ? ("\nWHERE " + this.plain_operator_build(extra_conditions)) : ""
+    var order = ""
+    if (extra_order) {
+      let orderlist = []
+      for (let ord of Object.keys(extra_order)) orderlist.push(ord + " " + extra_order[ord])
+      order = "\nORDER BY " + orderlist.join(', ')
+    }
+    
+    var tsql = "SELECT " + cols + " FROM (" + source + ") AKA " + conds + order
 
     //. Get Response from db
-    var ans = await this.query(usql)
+    var ans = await this.query(tsql)
     
     //. Fix wrong chars in strings
     let fixedrecords = ans.recordset

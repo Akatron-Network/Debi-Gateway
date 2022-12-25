@@ -17,12 +17,12 @@ async function post(req, res, body) {
 
   //* Execute from raw query
   if (body.query) {
-    var ans = await Connector.execute(body.query, body.columns) 
+    var ans = await Connector.execute(body.query) 
   }
 
   //* Execute from raw union
   if (body.union) {
-    var ans = await Connector.raw_union_execute(body.union, body.columns)
+    var ans = await Connector.raw_union_execute(body.union)
   }
 
   //* Execute from saved model
@@ -32,7 +32,7 @@ async function post(req, res, body) {
 
   //* Execute from saved union
   if (body.union_id) {
-    var ans = await Connector.union_execute(body.union_id)
+    var ans = await Connector.union_execute(body.union_id, body.columns, body.where_plain, body.order)
   }
 
   if (!ans[0]) { return resp.resp_error(res, ans[1]) }
