@@ -116,7 +116,6 @@ class ConnectorMSSQL {
     return [true, fixedrecords]
   }
 
-  //todo add extra condition and order
 /* //* Execute from model
   .   model_id:   saved model's id
   .   columns:    ['COL1', 'COL2'] */
@@ -148,10 +147,10 @@ class ConnectorMSSQL {
 
 /* //* Union Query Builder
   . ujson: {
-  .   "columns": {
-  .     "Cari_Kod": true,
-  .     "Cari_Isim": true
-  .   },
+  .   "columns": []
+  .     "Cari_Kod",
+  .     "Cari_Isim"
+  .   ],
   .   "childs": [
   .     {
   .       "union_child_id": 4,
@@ -180,7 +179,7 @@ class ConnectorMSSQL {
 */
   async union_query_build(ujson) {
     let query_list = []                               //. list of queries
-    let main_columns = Object.keys(ujson.columns)     //. list of main columns
+    let main_columns = ujson.columns     //. list of main columns
 
     for (let child of ujson.childs) {                                             //? Loop for childs
 
