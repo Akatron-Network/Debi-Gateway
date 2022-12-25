@@ -220,14 +220,15 @@ class ConnectorMSSQL {
   }
   
 /* //* Query Builder
-. Query Json Example
+  . Query Json Example
   {
     table: "TBLCAHAR",
     select: {
       "CARI_KOD": true,
       "ALACAK": "SUM",
       "BORC": "SUM",
-      "{Bakiye}": "ALACAK - BORC"
+      "{Bakiye}": "ALACAK - BORC",
+      "GRUP_ISIM|RAPOR_KODU1": true,
     },
     "where": {
       "AND": [
@@ -238,7 +239,7 @@ class ConnectorMSSQL {
         ]}
       ]
     },
-*   Easy to use where conditions  //! (if used where_plan, where is dismissed)
+  *   Easy to use where conditions  //! (if used where_plan, where is dismissed)
     "where_plain": [
       { "RAPOR_KODU5": { "equals": "BURSA" } },
       "OR",
@@ -246,7 +247,7 @@ class ConnectorMSSQL {
       "AND",
       { "RAPOR_KODU5": { "equals": "BURSA" } }
     ],
-*   --------------------------------------------
+  *   --------------------------------------------
     includes: [
       {
         "table": "TBLCASABIT",
@@ -293,50 +294,88 @@ class ConnectorMSSQL {
     //* Generate select section
     if (qjson.select && Object.keys(qjson.select).length > 0) {
       for (var s in qjson.select) {                                 //* Main table's columns (loop the select list)
-        if (qjson.select[s] === true) {                             // if selecting directly: select: { 'CARI_KOD': true }
-          select.push(qjson.alias + "." + s)                        // add to select list: 'A.CARI_KOD'
+        if (qjson.select[s] === true) {                             //? if selecting directly: select: { 'CARI_KOD': true }
+
+          if (s.includes('|')) {                                    //? if renamed column
+            let col = s.substring(0, s.indexOf('|'))                // get col name
+            let alias = s.substring(s.indexOf('|') + 1)             // get alias
+            select.push(qjson.alias + "." + col + " AS " + alias)   // send select list
+          }
+          else {
+            select.push(qjson.alias + "." + s)                      // add to select list: 'A.CARI_KOD'
+          }
           groupby.push(qjson.alias + "." + s)                       // add to group by list: 'A.CARI_KOD'
+
         }
-        else if (s.startsWith("{") && s.endsWith("}")) {            // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
+        else if (s.startsWith("{") && s.endsWith("}")) {            //? if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
           let customcol = s.substring(1, s.length - 1)              // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
           select.push("(" + qjson.select[s] + ") AS " + customcol)
 
-          if (qjson.select[s].includes('DATEPART')) {               // if custom col is datepart
+          if (qjson.select[s].includes('DATEPART')) {               //? if custom col is datepart
             groupby.push(qjson.select[s])                           // add it to groupby array
           }
         }
-        else {                                                      // if not selecting directly: select: { 'BORC': 'SUM' }
-          select.push(                                              // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
-            qjson.select[s] + "(" + qjson.alias + "." + s + ")" + 
-            " AS " + s + "_" + qjson.select[s]
-          )
+
+        else {                                                      //? if not selecting directly: select: { 'BORC': 'SUM' }
+          if (s.includes('|')) {                                    //? if renamed column
+            let col = s.substring(0, s.indexOf('|'))                // get col name
+            let alias = s.substring(s.indexOf('|') + 1)             // get alias
+            select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
+              qjson.select[s] + "(" + qjson.alias + "." + col + ")" + 
+              " AS " + alias
+            )
+          }
+          else {
+            select.push(                                              // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
+              qjson.select[s] + "(" + qjson.alias + "." + s + ")" + 
+              " AS " + s + "_" + qjson.select[s]
+            )
+          }
         }
       }
       
       for (var ic in qjson.includes) {                              //* Including columns (loop the includes list)
-        if (!qjson.includes[ic].select) { continue; }               // if there is no select, pass
+        let inc_obj = qjson.includes[ic]
+        if (!inc_obj.select) { continue; }                          //? if there is no select, pass
 
-        for (var ics in qjson.includes[ic].select) {                // loop the selects in includes
-          var icselm = qjson.includes[ic].select[ics]               // The value in include's select { "select": { "CARI_ISIM": true } } icselm = true
+        for (var ics in inc_obj.select) {                           // loop the selects in includes
+          var icselm = inc_obj.select[ics]                          // The value in include's select { "select": { "CARI_ISIM": true } } icselm = true
           
-          if (icselm === true) {                                    // if selecting directly: select: { 'CARI_KOD': true }
-            select.push(qjson.includes[ic].alias + "." + ics)       // add to select list: 'A.CARI_KOD'
-            groupby.push(qjson.includes[ic].alias + "." + ics)      // add to group by list: 'A.CARI_KOD'
+          if (icselm === true) {                                        //? if selecting directly: select: { 'CARI_KOD': true }
+            if (ics.includes('|')) {                                    //? if renamed column
+              let col = ics.substring(0, s.indexOf('|'))                // get col name
+              let alias = ics.substring(s.indexOf('|') + 1)             // get alias
+              select.push(inc_obj.alias + "." + col + " AS " + alias)   // send select list
+            }
+            else {
+              select.push(inc_obj.alias + "." + ics)                // add to select list: 'A.CARI_KOD'
+            }
+            groupby.push(inc_obj.alias + "." + ics)                 // add to group by list: 'A.CARI_KOD'
           }
-          else if (ics.startsWith("{") && ics.endsWith("}")) {      // if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
+          else if (ics.startsWith("{") && ics.endsWith("}")) {      //? if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
             let customcol = ics.substring(1, ics.length - 1)        // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
             select.push("(" + icselm + ") AS " + customcol)
 
-            if (icselm.includes('DATEPART')) {                      // if custom col is datepart
+            if (icselm.includes('DATEPART')) {                      //? if custom col is datepart
               groupby.push(icselm)                                  // add it to groupby array
             }
 
           }
-          else {                                                    // if not selecting directly: select: { 'BORC': 'SUM' }
-            select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
-              icselm + "(" + qjson.includes[ic].alias + "." + ics + 
-              ") AS " + ics + "_" + icselm
-            )
+          else {                                                    //? if not selecting directly: select: { 'BORC': 'SUM' }
+            if (ics.includes('|')) { 
+              let col = ics.substring(0, s.indexOf('|'))                // get col name
+              let alias = ics.substring(s.indexOf('|') + 1)             // get alias
+              select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS ALIAS'
+                icselm + "(" + inc_obj.alias + "." + col + 
+                ") AS " + alias
+              )
+            }
+            else {
+              select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS CARI_KOD_SUM'
+                icselm + "(" + inc_obj.alias + "." + ics + 
+                ") AS " + ics + "_" + icselm
+              )
+            }
           }
         }
       }
@@ -416,7 +455,11 @@ class ConnectorMSSQL {
       if (qjson.limit) {
         if (order.length === 0) { 
           let ind = 0
-          while (select[ind].includes('AS')) { ind++; }
+          console.log(select);
+          while (select[ind].includes(' AS')) {
+            if (select.length <= ind) { break; }
+            ind++;
+          }
           order.push(select[ind] + " ASC") 
         }
 
@@ -427,6 +470,7 @@ class ConnectorMSSQL {
 
     return qstr
   }
+
 
   //* Create alias for tables
   query_alias_generator(qjson) {
