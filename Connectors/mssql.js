@@ -1,4 +1,5 @@
 const sql = require('mssql')
+const fs = require('fs');
 const cnsl = require('../Libraries/console');
 const misc = require('../Libraries/misc');
 const {get_model} = require('../Requests/data_model');
@@ -34,6 +35,7 @@ class ConnectorMSSQL {
   constructor(collection, sqlConfig) {
     this.collection = collection
     this.sqlConfig = this.fixconfig(sqlConfig)
+    this.sync_path = require('path').join(__dirname, '../Functions/data/explorer_syncs/'+ this.collection.collection_id.toString() + ".json")
   }
 
   fixconfig(sqlConfig) {
@@ -229,7 +231,8 @@ class ConnectorMSSQL {
     return query_list.join('\n\nUNION ALL\n\n')
   }
   
-/* //* Query Builder
+
+/* Query Builder
   . Query Json Example
   {
     table: "TBLCAHAR",
@@ -310,11 +313,12 @@ class ConnectorMSSQL {
             let col = s.substring(0, s.indexOf('|'))                // get col name
             let alias = s.substring(s.indexOf('|') + 1)             // get alias
             select.push(qjson.alias + "." + col + " AS " + alias)   // send select list
+            groupby.push(qjson.alias + "." + col)                   // add to group by list: 'A.CARI_KOD'
           }
           else {
             select.push(qjson.alias + "." + s)                      // add to select list: 'A.CARI_KOD'
+            groupby.push(qjson.alias + "." + s)                     // add to group by list: 'A.CARI_KOD'
           }
-          groupby.push(qjson.alias + "." + s)                       // add to group by list: 'A.CARI_KOD'
 
         }
         else if (s.startsWith("{") && s.endsWith("}")) {            //? if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
@@ -353,14 +357,15 @@ class ConnectorMSSQL {
           
           if (icselm === true) {                                        //? if selecting directly: select: { 'CARI_KOD': true }
             if (ics.includes('|')) {                                    //? if renamed column
-              let col = ics.substring(0, s.indexOf('|'))                // get col name
-              let alias = ics.substring(s.indexOf('|') + 1)             // get alias
-              select.push(inc_obj.alias + "." + col + " AS " + alias)   // send select list
+              let col = ics.substring(0, ics.indexOf('|'))                // get col name
+              let alias = ics.substring(ics.indexOf('|') + 1)             // get alias
+              select.push(inc_obj.alias + "." + col + " AS " + alias)     // send select list
+              groupby.push(inc_obj.alias + "." + col)                     // add to group by list: 'A.CARI_KOD'
             }
             else {
               select.push(inc_obj.alias + "." + ics)                // add to select list: 'A.CARI_KOD'
+              groupby.push(inc_obj.alias + "." + ics)               // add to group by list: 'A.CARI_KOD'
             }
-            groupby.push(inc_obj.alias + "." + ics)                 // add to group by list: 'A.CARI_KOD'
           }
           else if (ics.startsWith("{") && ics.endsWith("}")) {      //? if custom select: select: { '{NET}': 'SUM(B.BORC) - SUM(B.ALACAK)' }
             let customcol = ics.substring(1, ics.length - 1)        // add directly to: '(SUM(B.BORC) - SUM(B.ALACAK)) as NET'
@@ -373,8 +378,8 @@ class ConnectorMSSQL {
           }
           else {                                                    //? if not selecting directly: select: { 'BORC': 'SUM' }
             if (ics.includes('|')) { 
-              let col = ics.substring(0, s.indexOf('|'))                // get col name
-              let alias = ics.substring(s.indexOf('|') + 1)             // get alias
+              let col = ics.substring(0, ics.indexOf('|'))                // get col name
+              let alias = ics.substring(ics.indexOf('|') + 1)             // get alias
               select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS ALIAS'
                 icselm + "(" + inc_obj.alias + "." + col + 
                 ") AS " + alias
@@ -464,13 +469,10 @@ class ConnectorMSSQL {
 
       if (qjson.limit) {
         if (order.length === 0) { 
-          let ind = 0
-          console.log(select);
-          while (select[ind].includes(' AS')) {
-            if (select.length <= ind) { break; }
-            ind++;
+          if (select[0].includes(' AS')) {
+            order.push(select[0].substring(0, select[0].indexOf(' AS')) + " ASC")
           }
-          order.push(select[ind] + " ASC") 
+          else { order.push(select[0] + " ASC") }
         }
 
         qstr += "ORDER BY \n" + tab + order.join(', \n' + tab) + " \n" 
@@ -480,6 +482,7 @@ class ConnectorMSSQL {
 
     return qstr
   }
+
 
 
   //* Create alias for tables
@@ -599,6 +602,36 @@ class ConnectorMSSQL {
     Views, columns and relations can be included
   ! including columns and relations may cause long time to execute */
   async get_tables(views = false, columns = false, relations = false) {
+
+    var translate_list = []
+    if (this.collection.db_scheme_id) { 
+      translate_list = await DBTranslate.get_complete_translations(this.collection.db_scheme_id)
+    }
+
+    //* If has sync file
+    if (fs.existsSync(this.sync_path)) {
+      let tables_list = JSON.parse(fs.readFileSync(this.sync_path)).data
+      let ret_tables = []
+
+      for (let tbl of tables_list) {
+
+        if (!views && tbl.type === 'VIEW') continue
+        if (!columns) delete tbl.columns
+        if (!relations) delete tbl.relations
+
+        var trnsl_table = await DBTranslate.find_from_translate_list(translate_list, tbl.table)
+        ret_tables.push({
+          ...tbl,
+          name: trnsl_table.name,
+          details: trnsl_table.details,
+          category: trnsl_table.category,
+          priority: trnsl_table.priority ? trnsl_table.priority : 0
+        })
+      }
+
+      return misc.descArraySortByKey(ret_tables, 'priority')
+    }
+
     let tables_sql = "SELECT TABLE_NAME as table_id, TABLE_TYPE as type FROM INFORMATION_SCHEMA.TABLES"
     if (!views) { tables_sql += " WHERE TABLE_TYPE != 'VIEW'"}
     tables_sql += " ORDER BY TABLE_TYPE, TABLE_NAME"
@@ -606,11 +639,6 @@ class ConnectorMSSQL {
     var tables_list = await this.query(tables_sql)
     
     tables_list = tables_list.recordset
-
-    var translate_list = []
-    if (this.collection.db_scheme_id) { 
-      translate_list = await DBTranslate.get_complete_translations(this.collection.db_scheme_id)
-    }
 
     for (var t = 0; t < tables_list.length; t++) {
 
@@ -668,6 +696,54 @@ class ConnectorMSSQL {
     }
 
     var trnsl_table = await DBTranslate.find_from_translate_list(translate_list, tablename)
+
+    //* If has sync file
+    if (fs.existsSync(this.sync_path)) {
+      let tables_list = JSON.parse(fs.readFileSync(this.sync_path)).data
+      let ret_table = {}
+
+      for (let tbl of tables_list) {
+        if (tbl.table !== tablename) continue
+
+        if (relations) {
+          for (let irel of tbl.relations.inner) {
+            let trnsl = await DBTranslate.find_from_translate_list(translate_list, irel.table)
+
+            irel.name = trnsl.name
+            irel.details = trnsl.details
+            irel.category = trnsl.category
+            irel.priority = trnsl.priority ? trnsl.priority : -3
+          }
+          for (let orel of tbl.relations.outer) {
+            let trnsl = await DBTranslate.find_from_translate_list(translate_list, orel.table)
+
+            orel.name = trnsl.name
+            orel.details = trnsl.details
+            orel.category = trnsl.category
+            orel.priority = trnsl.priority ? trnsl.priority : -3
+          }
+
+          tbl.relations.inner = misc.descArraySortByKey(tbl.relations.inner, 'priority')
+          tbl.relations.outer = misc.descArraySortByKey(tbl.relations.outer, 'priority')
+
+        }
+
+        ret_table.source_table = {
+          table: tbl.table,
+          type: tbl.type,
+          name: trnsl_table.name,
+          details: trnsl_table.details,
+          category: trnsl_table.category,
+          priority: trnsl_table.priority ? trnsl_table.priority : -3,
+          columns: columns ? tbl.columns : undefined,
+          relations: relations ? tbl.relations : undefined
+        }
+
+        return ret_table
+
+      }
+    }
+
 
     var rels = undefined
 
@@ -831,6 +907,121 @@ class ConnectorMSSQL {
       
   }
 
+
+  //--- Synchronizations ---//
+
+  async sync_database(res) {
+    res.write('{')
+
+    let tables_sql = "SELECT TABLE_NAME as table_id, TABLE_TYPE as type FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_TYPE, TABLE_NAME"
+    let tables_data = (await this.query(tables_sql)).recordset
+
+    res.write('"tables_length": ' + (tables_data.length).toString())
+
+    let columns_sql = 
+      "SELECT TABLE_NAME, COLUMN_NAME as name, DATA_TYPE as type, " + 
+      "	(CASE WHEN " + 
+      "		(SELECT TOP 1 OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + QUOTENAME(CONSTRAINT_NAME)), 'IsPrimaryKey') " + 
+      "			FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku " + 
+      "			WHERE ku.TABLE_NAME = cl.TABLE_NAME AND ku.COLUMN_NAME = cl.COLUMN_NAME " + 
+      "     ORDER BY OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + QUOTENAME(CONSTRAINT_NAME)), 'IsPrimaryKey') DESC) = 1 " + 
+      "	THEN 1 ELSE 0 END) as primary_key " + 
+      "FROM INFORMATION_SCHEMA.COLUMNS cl"
+    let columns_data = (await this.query(columns_sql)).recordset
+
+    res.write(',"columns_length": ' + (columns_data.length).toString())
+
+    for (let t of tables_data) {
+      t.table = t.table_id
+      delete t.table_id
+    }
+
+    for (let c of columns_data) {
+      let tbl_name = c.TABLE_NAME
+      let colobj = {name: c.name, type: c.type, primary_key: c.primary_key}
+
+      for (let t of tables_data) {
+        if (t.table === tbl_name) {
+          if (t.columns) { t.columns.push(colobj) }
+          else { t.columns = [ colobj ] }
+          break;
+        }
+      }
+    }
+
+    let relations_sql = 
+      "SELECT " +
+      "    f.name AS foreign_key_name, " +
+      "   OBJECT_NAME(f.parent_object_id) AS table_name, " +
+      "   COL_NAME(fc.parent_object_id, fc.parent_column_id) AS constraint_column_name, " +
+      "   (CASE WHEN " +
+      "		(SELECT SUM(OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + QUOTENAME(CONSTRAINT_NAME)), 'IsPrimaryKey')) " +
+      "			FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku " +
+      "			WHERE ku.TABLE_NAME = OBJECT_NAME(f.parent_object_id) AND ku.COLUMN_NAME = COL_NAME(fc.parent_object_id, fc.parent_column_id)) = 1 " +
+      "	  THEN 1 ELSE 0 END) as constcol_isPK, " +
+      "   OBJECT_NAME (f.referenced_object_id) AS referenced_object, " +
+      "   COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS referenced_column_name, " +
+      "   (CASE WHEN " +
+      "		(SELECT SUM(OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + QUOTENAME(CONSTRAINT_NAME)), 'IsPrimaryKey')) " +
+      "			FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku " +
+      "			WHERE ku.TABLE_NAME = OBJECT_NAME (f.referenced_object_id) AND ku.COLUMN_NAME = COL_NAME(fc.referenced_object_id, fc.referenced_column_id)) = 1 " +
+      "		THEN 1 ELSE 0 END) as refcol_isPK, " +
+      "   f.is_disabled, f.is_not_trusted, " +
+      "   f.delete_referential_action_desc, " +
+      "   f.update_referential_action_desc " +
+      "FROM sys.foreign_keys AS f " +
+      "   INNER JOIN sys.foreign_key_columns AS fc ON f.object_id = fc.constraint_object_id"
+    let relations_data = (await this.query(relations_sql)).recordset
+
+    res.write(',"relations_length": ' + (relations_data.length).toString())
+
+    for (let r of relations_data) {
+      let in_tbl = r.table_name
+      let in_obj = {
+        "table": r.referenced_object,
+        "relation_definition": {
+          "source_column": r.constraint_column_name,
+          "referenced_column": r.referenced_column_name,
+          "single_record": (r.refcol_isPK === 1)
+        }
+      }
+
+      let out_tbl = r.referenced_object
+      let out_obj = {
+        "table": r.table_name,
+        "relation_definition": {
+          "source_column": r.constraint_column_name,
+          "referenced_column": r.referenced_column_name,
+          "single_record": (r.refcol_isPK === 1)
+        }
+      }
+
+      for (let t of tables_data) {
+        if (!t.relations) { t.relations = {inner: [], outer:[] }}
+        if (t.table === in_tbl) {
+          t.relations.inner.push(in_obj)
+        }
+        if (t.table === out_tbl) {
+          t.relations.outer.push(out_obj)
+        }
+      }
+    }
+
+    res.write(',"Success": true }')
+
+    let sync_content = {
+      sync_date: misc.getDateString(),
+      collection_id: this.collection.collection_id,
+      data: tables_data
+    }
+
+    fs.writeFileSync(this.sync_path, JSON.stringify(sync_content), 'utf-8')
+
+    cnsl.log('Syncronization saved. Collection: ' + this.collection.collection_id)
+
+    return true
+
+  }
 
   
   //---- Miscellaneous ----//
