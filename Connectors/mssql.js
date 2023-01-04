@@ -35,7 +35,7 @@ class ConnectorMSSQL {
   constructor(collection, sqlConfig) {
     this.collection = collection
     this.sqlConfig = this.fixconfig(sqlConfig)
-    this.sync_path = require('path').join(__dirname, '../Functions/data/explorer_syncs/'+ this.collection.collection_id.toString() + ".json")
+    if (this.collection.collection_id) this.sync_path = require('path').join(__dirname, '../Functions/data/explorer_syncs/'+ this.collection.collection_id.toString() + ".json")
   }
 
   fixconfig(sqlConfig) {
