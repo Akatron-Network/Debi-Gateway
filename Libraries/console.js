@@ -10,10 +10,10 @@ const { handleError } = require('./errorhandler');
 function log(text, datestamp = true, timestamp = true) {
   log_msg = ""
 
-  if (datestamp) { log_msg += "[" + misc.getDateString() + "] " }
-  if (timestamp) { log_msg += "[" + misc.getTimeString() + "] " }
+  if (datestamp) { log_msg += colors.FgYellow + "[" + misc.getDateString() + "] " + colors.Reset }
+  if (timestamp) { log_msg += colors.FgYellow + "[" + misc.getTimeString() + "] " + colors.Reset }
   
-  return console.log(log_msg + text);
+  return console.log(log_msg + text + colors.Reset);
 }
 
 //* Clean log

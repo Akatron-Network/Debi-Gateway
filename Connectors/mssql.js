@@ -5,6 +5,7 @@ const misc = require('../Libraries/misc');
 const {get_model} = require('../Requests/data_model');
 const {get_union} = require('../Requests/data_union');
 const DBTranslate = require('../Requests/translate').DBTranslate;
+const { syncext } = require('../Requests/syncextras');
 
 /* //-- Microsoft SQL Server Connector
 
@@ -77,21 +78,76 @@ class ConnectorMSSQL {
 
   //---- Executioners ----//
 
-/* //* Execute directly from json query
+/* Execute directly from json query
   .   qjson:    query builder's query
   .   columns:  ['COL1', 'COL2'] */
   async execute(qjson, columns, extra_conditions, extra_order) {
     var source = this.query_build(qjson)
-    var cols = (columns) ? columns.join(', ') : "*"
+    var cols = "*"
+    var groups = ""
+
+    if (columns) {
+      let collist = Object.keys(columns).map(
+        ci => (columns[ci] === true) ? ci : columns[ci] + "(" + ci + ") as " + ci + "_" + columns[ci]
+      )
+      let grouplist = collist.filter(c => !c.includes('('))
+
+      cols = collist.join(',')
+      groups = "\nGROUP BY " + grouplist.join(',') + ""
+    }
+    let havings = []
+
+    if (extra_conditions) {
+
+      let to_delete = []
+
+      for (let ci in extra_conditions) {
+        let c = extra_conditions[ci]
+        if (typeof(c) === 'object') {
+          let col = Object.keys(c)[0]
+          let val = c[col]
+          if (Object.keys(columns).includes(col) && columns[col] !== true) {
+            let aggr_type = columns[col]
+
+            havings.push({[aggr_type + '(' + col + ')']: val})
+            if (parseInt(ci) > 0)   havings.push(extra_conditions[parseInt(ci) - 1])
+
+            if (parseInt(ci) > 0)         to_delete.push(parseInt(ci) - 1)
+            to_delete.push(parseInt(ci))
+            if (parseInt(ci) === 0)       to_delete.push(parseInt(ci) + 1)
+          }
+        }
+      }
+
+      let addition = 0
+      for (let i of to_delete) {
+        extra_conditions.splice((i - addition),1)
+        addition++
+      }
+      if (extra_conditions.length === 0) extra_conditions = undefined
+      
+    }
+
+    if (havings.length > 1) havings.pop()
+    if (havings.length === 0) havings = undefined
+
     var conds = (extra_conditions) ? ("\nWHERE " + this.plain_operator_build(extra_conditions)) : ""
+    var havs = (havings) ? ("\nHAVING " + this.plain_operator_build(havings)) : ""
+
     var order = ""
     if (extra_order) {
       let orderlist = []
-      for (let ord of Object.keys(extra_order)) orderlist.push(ord + " " + extra_order[ord])
+      for (let ord of Object.keys(extra_order)) {
+        if (columns) if (columns[ord] !== true) {
+          orderlist.push(columns[ord] + "(" + ord + ") " + extra_order[ord])
+          continue;
+        }
+        orderlist.push(ord + " " + extra_order[ord])
+      }
       order = "\nORDER BY " + orderlist.join(', ')
     }
 
-    var tsql = "SELECT " + cols + " FROM (" + source + ") AKA " + conds + order
+    var tsql = "SELECT \n" + cols + " \nFROM (" + source + ") AKA " + conds + groups + havs + order
 
     //. Get Response from db
     var ans = await this.query(tsql)
@@ -103,7 +159,7 @@ class ConnectorMSSQL {
     return [true, fixedrecords]
   }
 
-/* //* Execute directly from union object
+/* Execute directly from union object
   .   union:  union data */
   async raw_union_execute(union) {
     let tsql = await this.union_query_build(union)
@@ -118,7 +174,7 @@ class ConnectorMSSQL {
     return [true, fixedrecords]
   }
 
-/* //* Execute from model
+/* Execute from model
   .   model_id:   saved model's id
   .   columns:    ['COL1', 'COL2'] */
   async model_execute(model_id, columns, extra_conditions, extra_order) {
@@ -127,16 +183,16 @@ class ConnectorMSSQL {
     return await this.execute(qjson, columns, extra_conditions, extra_order)
   }
 
-/* //* Execute from union
+/* Execute from union
   .   union_id:   saved union's id */
-  async union_execute(union_id, columns, extra_conditions, extra_order) {
+  async union_execute(union_id, columns, extra_conditions = [], extra_order = []) {
     var uniondata = await get_union(union_id)
     var source = await this.union_query_build(uniondata)
 
     var cols = (columns) ? columns.join(', ') : "*"
-    var conds = (extra_conditions) ? ("\nWHERE " + this.plain_operator_build(extra_conditions)) : ""
+    var conds = (extra_conditions.length > 0) ? ("\nWHERE " + this.plain_operator_build(extra_conditions)) : ""
     var order = ""
-    if (extra_order) {
+    if (extra_order.length > 0) {
       let orderlist = []
       for (let ord of Object.keys(extra_order)) orderlist.push(ord + " " + extra_order[ord])
       order = "\nORDER BY " + orderlist.join(', ')
@@ -147,6 +203,8 @@ class ConnectorMSSQL {
     //. Get Response from db
     var ans = await this.query(tsql)
     
+    console.log(tsql);
+
     //. Fix wrong chars in strings
     let fixedrecords = ans.recordset
     for (let r of fixedrecords) for (let e of Object.keys(r)) { r[e] = this.langfix(r[e]) }
@@ -231,7 +289,6 @@ class ConnectorMSSQL {
     return query_list.join('\n\nUNION ALL\n\n')
   }
   
-
 /* Query Builder
   . Query Json Example
   {
@@ -355,8 +412,8 @@ class ConnectorMSSQL {
         for (var ics in inc_obj.select) {                           // loop the selects in includes
           var icselm = inc_obj.select[ics]                          // The value in include's select { "select": { "CARI_ISIM": true } } icselm = true
           
-          if (icselm === true) {                                        //? if selecting directly: select: { 'CARI_KOD': true }
-            if (ics.includes('|')) {                                    //? if renamed column
+          if (icselm === true) {                                          //? if selecting directly: select: { 'CARI_KOD': true }
+            if (ics.includes('|')) {                                      //? if renamed column
               let col = ics.substring(0, ics.indexOf('|'))                // get col name
               let alias = ics.substring(ics.indexOf('|') + 1)             // get alias
               select.push(inc_obj.alias + "." + col + " AS " + alias)     // send select list
@@ -378,8 +435,8 @@ class ConnectorMSSQL {
           }
           else {                                                    //? if not selecting directly: select: { 'BORC': 'SUM' }
             if (ics.includes('|')) { 
-              let col = ics.substring(0, ics.indexOf('|'))                // get col name
-              let alias = ics.substring(ics.indexOf('|') + 1)             // get alias
+              let col = ics.substring(0, ics.indexOf('|'))            // get col name
+              let alias = ics.substring(ics.indexOf('|') + 1)         // get alias
               select.push(                                            // add to select list: 'SUM(A.CARI_KOD) AS ALIAS'
                 icselm + "(" + inc_obj.alias + "." + col + 
                 ") AS " + alias
@@ -484,7 +541,6 @@ class ConnectorMSSQL {
   }
 
 
-
   //* Create alias for tables
   query_alias_generator(qjson) {
     var aliaslist = []
@@ -554,11 +610,15 @@ class ConnectorMSSQL {
     var general_conditions = []
 
     for (var op of object) {
+      if (!op) continue
       if (typeof(op) === 'string') {
         general_conditions.push(op)
       }
       else if (typeof(op) === 'object') {
-        if (Object.keys(op) === 0) { continue; }
+        if (Object.keys(op).length === 0) continue
+        if (Object.keys(op)[0].includes('|')) {
+          op = {[Object.keys(op)[0].substring(Object.keys(op)[0].indexOf('|') + 1)]: op[Object.keys(op)[0]]} 
+        }
         general_conditions.push(this.condition_build(op, alias))
       }
     }
@@ -687,96 +747,107 @@ class ConnectorMSSQL {
 /* //* Get table's detailed information
   . Returns JSON
     columns and relations can be included */
-  async get_table_info(tablename, columns = true, relations = false) {
+    async get_table_info(tablename, columns = true, relations = false) {
     
-    var translate_list = []
-
-    if (this.collection.db_scheme_id) { 
-      translate_list = await DBTranslate.get_complete_translations(this.collection.db_scheme_id)
-    }
-
-    var trnsl_table = await DBTranslate.find_from_translate_list(translate_list, tablename)
-
-    //* If has sync file
-    if (fs.existsSync(this.sync_path)) {
-      let tables_list = JSON.parse(fs.readFileSync(this.sync_path)).data
-      let ret_table = {}
-
-      for (let tbl of tables_list) {
-        if (tbl.table !== tablename) continue
-
-        if (relations) {
-          for (let irel of tbl.relations.inner) {
-            let trnsl = await DBTranslate.find_from_translate_list(translate_list, irel.table)
-
-            irel.name = trnsl.name
-            irel.details = trnsl.details
-            irel.category = trnsl.category
-            irel.priority = trnsl.priority ? trnsl.priority : -3
-          }
-          for (let orel of tbl.relations.outer) {
-            let trnsl = await DBTranslate.find_from_translate_list(translate_list, orel.table)
-
-            orel.name = trnsl.name
-            orel.details = trnsl.details
-            orel.category = trnsl.category
-            orel.priority = trnsl.priority ? trnsl.priority : -3
-          }
-
-          tbl.relations.inner = misc.descArraySortByKey(tbl.relations.inner, 'priority')
-          tbl.relations.outer = misc.descArraySortByKey(tbl.relations.outer, 'priority')
-
-        }
-
-        ret_table.source_table = {
-          table: tbl.table,
-          type: tbl.type,
-          name: trnsl_table.name,
-          details: trnsl_table.details,
-          category: trnsl_table.category,
-          priority: trnsl_table.priority ? trnsl_table.priority : -3,
-          columns: columns ? tbl.columns : undefined,
-          relations: relations ? tbl.relations : undefined
-        }
-
-        return ret_table
-
+      var translate_list = []
+  
+      if (this.collection.db_scheme_id) { 
+        translate_list = await DBTranslate.get_complete_translations(this.collection.db_scheme_id)
       }
-    }
-
-
-    var rels = undefined
-
-    if (relations) {
-      const rel_inner = await this.get_relations(tablename, true, translate_list)
-      const rel_outer = await this.get_relations(tablename, false, translate_list)
-
-      rels = {
-        inner: rel_inner,
-        outer: rel_outer
+  
+      var trnsl_table = await DBTranslate.find_from_translate_list(translate_list, tablename)
+  
+      //* If has sync file
+      if (fs.existsSync(this.sync_path)) {
+        let tables_list = JSON.parse(fs.readFileSync(this.sync_path)).data
+        let ret_table = {}
+  
+        for (let tbl of tables_list) {
+          if (tbl.table !== tablename) continue
+  
+          if (relations) {
+            for (let irel of tbl.relations.inner) {
+              let trnsl = await DBTranslate.find_from_translate_list(translate_list, irel.table)
+  
+              irel.name = trnsl.name
+              irel.details = trnsl.details
+              irel.category = trnsl.category
+              irel.priority = trnsl.priority ? trnsl.priority : -3
+            }
+            for (let orel of tbl.relations.outer) {
+              let trnsl = await DBTranslate.find_from_translate_list(translate_list, orel.table)
+  
+              orel.name = trnsl.name
+              orel.details = trnsl.details
+              orel.category = trnsl.category
+              orel.priority = trnsl.priority ? trnsl.priority : -3
+            }
+  
+            tbl.relations.inner = misc.descArraySortByKey(tbl.relations.inner, 'priority')
+            tbl.relations.outer = misc.descArraySortByKey(tbl.relations.outer, 'priority')
+  
+          }
+  
+          if (columns) {
+            for (let col of tbl.columns) {
+              var trnsl_col = await DBTranslate.find_from_translate_list(translate_list, tablename, col.name)
+  
+              col['details'] = trnsl_col.details
+              col['priority'] = trnsl_col.priority ? trnsl_col.priority : -3
+            }
+  
+            tbl.columns = misc.descArraySortByKey(tbl.columns, 'priority')
+          }
+  
+          ret_table.source_table = {
+            table: tbl.table,
+            type: tbl.type,
+            name: trnsl_table.name,
+            details: trnsl_table.details,
+            category: trnsl_table.category,
+            priority: trnsl_table.priority ? trnsl_table.priority : -3,
+            columns: columns ? tbl.columns : undefined
+          }
+          ret_table.relations = relations ? tbl.relations : undefined
+  
+          return ret_table
+  
+        }
       }
+  
+  
+      var rels = undefined
+  
+      if (relations) {
+        const rel_inner = await this.get_relations(tablename, true, translate_list)
+        const rel_outer = await this.get_relations(tablename, false, translate_list)
+  
+        rels = {
+          inner: rel_inner,
+          outer: rel_outer
+        }
+      }
+  
+      var source_colls = undefined
+  
+      if (columns) {
+        source_colls = await this.get_table_columns(tablename, translate_list)
+      }
+  
+      let source_table = {
+        table: tablename,
+        name: trnsl_table.name,
+        details: trnsl_table.details,
+        category: trnsl_table.category,
+        priority: trnsl_table.priority ? trnsl_table.priority : 0
+      }
+  
+      return {
+        source_table: {...source_table, columns: source_colls},
+        relations: rels
+      }
+  
     }
-    
-    var source_colls = undefined
-
-    if (columns) {
-      source_colls = await this.get_table_columns(tablename, translate_list)
-    }
-
-    let source_table = {
-      table: tablename,
-      name: trnsl_table.name,
-      details: trnsl_table.details,
-      category: trnsl_table.category,
-      priority: trnsl_table.priority ? trnsl_table.priority : 0
-    }
-
-    return {
-      source_table: {...source_table, columns: source_colls},
-      relations: rels
-    }
-
-  }
 
 /* //* Get specified table's columns 
   . Returns Array */
@@ -911,12 +982,22 @@ class ConnectorMSSQL {
   //--- Synchronizations ---//
 
   async sync_database(res) {
-    res.write('{')
+    if (!this.collection.db_scheme_id) throw new Error('Db scheme not found')
+    if (res) res.write('{')
+
+    cnsl.log('Syncronization started. Collection: ' + this.collection.collection_name + ' (' + this.collection.collection_id + ')')
 
     let tables_sql = "SELECT TABLE_NAME as table_id, TABLE_TYPE as type FROM INFORMATION_SCHEMA.TABLES ORDER BY TABLE_TYPE, TABLE_NAME"
     let tables_data = (await this.query(tables_sql)).recordset
 
-    res.write('"tables_length": ' + (tables_data.length).toString())
+    let extras = await syncext(this.collection.db_scheme_id)
+
+    if (res) res.write('"tables_length": ' + (tables_data.length).toString())
+
+    for (let t of tables_data) {
+      t.table = t.table_id
+      delete t.table_id
+    }
 
     let columns_sql = 
       "SELECT TABLE_NAME, COLUMN_NAME as name, DATA_TYPE as type, " + 
@@ -929,16 +1010,15 @@ class ConnectorMSSQL {
       "FROM INFORMATION_SCHEMA.COLUMNS cl"
     let columns_data = (await this.query(columns_sql)).recordset
 
-    res.write(',"columns_length": ' + (columns_data.length).toString())
+    let ext_cols = (extras['extra_columns'] !== null) ? extras['extra_columns'] : []
+    ext_cols.map(r => columns_data.push(r))
 
-    for (let t of tables_data) {
-      t.table = t.table_id
-      delete t.table_id
-    }
+    if (res) res.write(',"columns_length": ' + (columns_data.length).toString())
 
     for (let c of columns_data) {
       let tbl_name = c.TABLE_NAME
       let colobj = {name: c.name, type: c.type, primary_key: c.primary_key}
+      if (c.type === 'special') colobj['value'] = c.value
 
       for (let t of tables_data) {
         if (t.table === tbl_name) {
@@ -973,7 +1053,10 @@ class ConnectorMSSQL {
       "   INNER JOIN sys.foreign_key_columns AS fc ON f.object_id = fc.constraint_object_id"
     let relations_data = (await this.query(relations_sql)).recordset
 
-    res.write(',"relations_length": ' + (relations_data.length).toString())
+    if (res) res.write(',"relations_length": ' + (relations_data.length).toString())
+
+    let ext_rel = (extras['extra_relations'] !== null) ? extras['extra_relations'] : []
+    ext_rel.map(r => relations_data.push(r))
 
     for (let r of relations_data) {
       let in_tbl = r.table_name
@@ -1007,7 +1090,7 @@ class ConnectorMSSQL {
       }
     }
 
-    res.write(',"Success": true }')
+    if (res) res.write(',"Success": true }')
 
     let sync_content = {
       sync_date: misc.getDateString(),
@@ -1017,7 +1100,7 @@ class ConnectorMSSQL {
 
     fs.writeFileSync(this.sync_path, JSON.stringify(sync_content), 'utf-8')
 
-    cnsl.log('Syncronization saved. Collection: ' + this.collection.collection_id)
+    cnsl.log('Syncronization saved. Collection: ' + this.collection.collection_name + ' (' + this.collection.collection_id + ')')
 
     return true
 

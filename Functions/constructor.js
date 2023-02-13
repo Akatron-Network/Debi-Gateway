@@ -75,7 +75,7 @@ function construct_routes(app) {
 
     var ip = req.ip
     
-    cnsl.info_log(method + ": " + "(" + (misc.sizeOfJson(body).toFixed(2)) + "KB" + ") " + req.baseUrl + cnsl.colors.Dim + " // " + JSON.stringify(body).substring(0,50) + "... -> " + ip)
+    cnsl.info_log(cnsl.colors.FgCyan + method + ": " + "(" + (misc.sizeOfJson(body).toFixed(2)) + "KB" + ") " + req.baseUrl + cnsl.colors.Dim + " // " + JSON.stringify(body).substring(0,50) + "... -> " + ip)
     
 
     //. Control is the method acceptable
