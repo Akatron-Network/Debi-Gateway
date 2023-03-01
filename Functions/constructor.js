@@ -9,6 +9,9 @@ const execute = require('./data/execute').function_module;
 const conector = require('./data/connector').function_module;
 const expl_sync = require('./data/explorer_sync').function_module;
 
+//--- Service Functions
+const refresh = require('./service/refresh').function_module;
+
 //* Function Registration
 
 //. var Functions_registry = {
@@ -16,7 +19,8 @@ const expl_sync = require('./data/explorer_sync').function_module;
 //. }
 
 var Functions_registry = {
-  data: [explorer, execute, conector, expl_sync]
+  data: [explorer, execute, conector, expl_sync],
+  service: [refresh]
 }
 
 

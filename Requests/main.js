@@ -6,6 +6,9 @@ const { DBTranslate } = require("./translate");
 const { getCollections } = require("./collections");
 const misc = require('../Libraries/misc');
 const { ping } = require('./ping');
+const fs = require('fs');
+const path = require('path');
+const connector = require('./connector');
 
 async function setup() {
   var st_time = misc.getTimestamp()
@@ -32,6 +35,25 @@ async function setup() {
   cnsl.clean_log(cnsl.colors.FgYellow + "[+] " + cnsl.colors.FgWhite + "Connectors: " + cnsl.colors.Dim + Object.keys(env.ConnectorConfigs).join(", "))
   cnsl.clean_log(cnsl.colors.FgYellow + "[+] " + cnsl.colors.FgWhite + "Translates: " + cnsl.colors.Dim + Object.keys(env.DBTranslateData).join(", "))
   cnsl.clean_log(cnsl.colors.FgYellow + cnsl.colors.Dim + "-> " + (Math.floor((misc.getTimestamp() - st_time)*1000)) + " ms \n")
+
+  //* Control syncronizations
+  for (let col in env.Collections) {
+    let is_gateway = env.Collections[col].connector.gateway_host !== null
+    if (is_gateway) {
+      let filepath = path.resolve(__dirname, "../Functions/data/explorer_syncs/" + col + ".json")
+      if (!fs.existsSync(filepath)) {
+        var Connector = await connector.getConnector(col)
+        try {
+          await Connector.sync_database()
+        }
+        catch (e) {
+          cnsl.error_log(e);
+        }
+      }
+    }
+  }
+
+
 }
 
 
