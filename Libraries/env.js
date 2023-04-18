@@ -61,6 +61,9 @@ var Settings = {}
 
 var Logs_Path = require('path').resolve(__dirname, '../logs')
 
+var ActiveConnections = []
+
+
 module.exports = {
   Functions,
   Function_Settings,
@@ -71,5 +74,6 @@ module.exports = {
   Token,
   User,
   Settings,
-  Logs_Path
+  Logs_Path,
+  ActiveConnections
 }

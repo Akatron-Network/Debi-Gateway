@@ -2,6 +2,7 @@ const sql = require('mssql')
 const fs = require('fs');
 const cnsl = require('../Libraries/console');
 const misc = require('../Libraries/misc');
+const env = require('../Libraries/env');
 const {get_model} = require('../Requests/data_model');
 const {get_union} = require('../Requests/data_union');
 const DBTranslate = require('../Requests/translate').DBTranslate;
@@ -53,11 +54,31 @@ class ConnectorMSSQL {
     return sqlConfig
   }
 
-  //* Connect to the database
-  async connect() { return sql.connect(this.sqlConfig) }
+//. Connect to the database
+  async connect() { 
+    let st_time = Date.now()
+    let timeout = 40 * 1000        //. 40 second
+    while (this.isActive()) {
+      if (Date.now() - st_time > timeout) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    env.ActiveConnections.push(this.collection.collection_id)
+    return await sql.connect(this.sqlConfig) 
+  }
 
-  //* Disconnect
-  async disconnect() { return sql.close() }
+//. Disconnect
+  async disconnect() { 
+    if (this.isActive()) {
+      let i = env.ActiveConnections.findIndex(e => e === this.collection.collection_id)
+      env.ActiveConnections.splice(i,1)
+    }
+    return await sql.close() 
+  }
+
+//. Control the connection
+  isActive() {
+    return env.ActiveConnections.includes(this.collection.collection_id)
+  }
 
 /* //* Run a query
   . Returns [state, answer/error] */
@@ -993,6 +1014,7 @@ class ConnectorMSSQL {
     let extras = await syncext(this.collection.db_scheme_id)
 
     if (res) res.write('"tables_length": ' + (tables_data.length).toString())
+    cnsl.log(tables_data.length + ' Table found for ' + this.collection.collection_name)
 
     for (let t of tables_data) {
       t.table = t.table_id
@@ -1014,6 +1036,7 @@ class ConnectorMSSQL {
     ext_cols.map(r => columns_data.push(r))
 
     if (res) res.write(',"columns_length": ' + (columns_data.length).toString())
+    cnsl.log(columns_data.length + ' Columns found for ' + this.collection.collection_name)
 
     for (let c of columns_data) {
       let tbl_name = c.TABLE_NAME
@@ -1054,7 +1077,8 @@ class ConnectorMSSQL {
     let relations_data = (await this.query(relations_sql)).recordset
 
     if (res) res.write(',"relations_length": ' + (relations_data.length).toString())
-
+    cnsl.log(columns_data.length + ' Relation found for ' + this.collection.collection_name)
+    
     let ext_rel = (extras['extra_relations'] !== null) ? extras['extra_relations'] : []
     ext_rel.map(r => relations_data.push(r))
 

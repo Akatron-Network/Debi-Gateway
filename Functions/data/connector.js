@@ -16,7 +16,7 @@ async function put(req, res, body) {
 
   try { 
     var connector = new env.Connectors[conn_type]({}, context)
-    cnsl.clean_log(cnsl.colors.FgWhite + cnsl.colors.Dim + JSON.stringify(context, undefined, 4));
+    cnsl.clean_log(cnsl.colors.FgWhite + cnsl.colors.Dim + JSON.stringify(context, undefined, 4).replaceAll('    ', '&nbsp;&nbsp;'));
 
     await connector.connect()
     

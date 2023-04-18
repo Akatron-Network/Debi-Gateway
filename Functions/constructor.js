@@ -11,6 +11,7 @@ const expl_sync = require('./data/explorer_sync').function_module;
 
 //--- Service Functions
 const refresh = require('./service/refresh').function_module;
+const ping = require('./service/ping').function_module;
 
 //* Function Registration
 
@@ -20,7 +21,7 @@ const refresh = require('./service/refresh').function_module;
 
 var Functions_registry = {
   data: [explorer, execute, conector, expl_sync],
-  service: [refresh]
+  service: [refresh, ping]
 }
 
 

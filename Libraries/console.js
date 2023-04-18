@@ -76,7 +76,7 @@ async function get_latest_file(is_opening) {
   return retcontent
 }
 
-async function write_file(logtype, message) {
+async function write_file(logtype, message = "") {
   let dirs = await get_latest_file()
   if (!Object.keys(dirs).includes(logtype)) { return false }
 

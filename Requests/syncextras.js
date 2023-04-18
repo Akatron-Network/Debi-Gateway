@@ -9,6 +9,7 @@ async function syncext(db_scheme_id) {
     env.Settings.APIPORT + 
     env.Settings.APIGATEPATH_SYNCEXT
 
+  cnsl.log(url)
   let ans = await got(url, {
     headers: {"Token": env.Token}, 
     searchParams: {db_scheme_id}
